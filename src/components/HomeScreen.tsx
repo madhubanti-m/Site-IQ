@@ -42,21 +42,36 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
       const title: string = scrapeData.data?.metadata?.title ?? url;
       const links: string[] = scrapeData.data?.links ?? [];
 
-      const analyzeRes = await fetch(`${SUPABASE_URL}/functions/v1/analyze`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ intent: intent.trim(), content }),
-      });
+      const [analyzeRes, smartRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/functions/v1/analyze`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ intent: intent.trim(), content }),
+        }),
+        fetch(`${SUPABASE_URL}/functions/v1/smart-analysis`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ content }),
+        }),
+      ]);
 
       if (!analyzeRes.ok) {
         const err = await analyzeRes.json();
         throw new Error(err.error ?? "Analysis failed");
       }
+      if (!smartRes.ok) {
+        const err = await smartRes.json();
+        throw new Error(err.error ?? "Smart analysis failed");
+      }
 
       const { summary } = await analyzeRes.json();
+      const { analysis } = await smartRes.json();
 
       onResults({
         url: url.trim(),
@@ -65,6 +80,7 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
         content,
         links,
         summary,
+        analysis,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -139,7 +155,7 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          Powered by Firecrawl + Groq AI
+          Powered by Firecrawl + Claude AI
         </p>
       </div>
     </div>

@@ -6,6 +6,7 @@ export interface ScrapeResult {
   content: string;
   links: string[];
   summary: string;
+  analysis: string;
   created_at: string;
 }
 

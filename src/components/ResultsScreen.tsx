@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Sparkles, Link2, ChevronDown, ChevronUp, Save, RotateCcw, ExternalLink, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sparkles, Brain, Link2, ChevronDown, ChevronUp, Save, RotateCcw, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { ScrapeResult } from "../types";
 
@@ -17,13 +17,71 @@ function parseBullets(summary: string): string[] {
     .slice(0, 3);
 }
 
+interface AnalysisSection {
+  label: string;
+  content: string;
+}
+
+function parseAnalysis(analysis: string): AnalysisSection[] {
+  if (!analysis) return [];
+  const sections: AnalysisSection[] = [];
+  const patterns = [
+    { key: "1.", label: "What Is This Page About" },
+    { key: "2.", label: "Key Takeaways" },
+    { key: "3.", label: "Who Is This Useful For" },
+    { key: "4.", label: "Overall Sentiment" },
+  ];
+
+  const lines = analysis.split("\n").filter(Boolean);
+  let currentLabel = "";
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    const matched = patterns.find((p) => line.trim().startsWith(p.key));
+    if (matched) {
+      if (currentLabel) {
+        sections.push({ label: currentLabel, content: currentLines.join("\n").trim() });
+      }
+      currentLabel = matched.label;
+      const afterNum = line.replace(/^\d+\.\s*/, "").replace(/^[A-Z\s—]+—?\s*/i, "").trim();
+      currentLines = afterNum ? [afterNum] : [];
+    } else if (currentLabel) {
+      currentLines.push(line);
+    }
+  }
+  if (currentLabel) {
+    sections.push({ label: currentLabel, content: currentLines.join("\n").trim() });
+  }
+
+  if (sections.length === 0 && analysis.trim()) {
+    return [{ label: "Analysis", content: analysis.trim() }];
+  }
+  return sections;
+}
+
+function getSentimentBadge(content: string): string {
+  const lower = content.toLowerCase();
+  if (lower.includes("positive")) return "text-green-700 bg-green-50 border border-green-200";
+  if (lower.includes("negative")) return "text-red-700 bg-red-50 border border-red-200";
+  return "text-yellow-700 bg-yellow-50 border border-yellow-200";
+}
+
 export default function ResultsScreen({ result, onScrapeAnother, onSaved }: ResultsScreenProps) {
   const [linksOpen, setLinksOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [showToast, setShowToast] = useState(false);
 
   const bullets = parseBullets(result.summary);
+  const analysisSections = parseAnalysis(result.analysis);
+
+  useEffect(() => {
+    if (showToast) {
+      const t = setTimeout(() => setShowToast(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [showToast]);
 
   async function handleSave() {
     setSaving(true);
@@ -36,34 +94,39 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
       content: result.content,
       links: result.links,
       summary: result.summary,
+      analysis: result.analysis,
     };
-
-    console.log("Inserting into scrape_results:", payload);
 
     const { data, error } = await supabase
       .from("scrape_results")
       .insert(payload)
       .select();
 
-    console.log("Supabase response — data:", data, "error:", error);
-
     setSaving(false);
     if (error) {
       setSaveError(error.message);
     } else {
-      console.log("Saved successfully");
+      console.log("Saved successfully", data);
       setSaved(true);
-      setTimeout(() => onSaved(), 1200);
+      setShowToast(true);
+      setTimeout(() => onSaved(), 1500);
     }
   }
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4">
-      <div className="max-w-2xl mx-auto space-y-5">
+    <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4 relative">
+      {showToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-5 py-3 rounded-full shadow-lg">
+          <CheckCircle2 size={16} />
+          Saved!
+        </div>
+      )}
+
+      <div className="max-w-2xl mx-auto space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 leading-tight line-clamp-2">
+          <h1 className="text-2xl font-bold text-gray-900 leading-tight">
             {result.title}
-          </h2>
+          </h1>
           <a
             href={result.url}
             target="_blank"
@@ -75,13 +138,18 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
           </a>
         </div>
 
-        <div className="bg-white border border-indigo-100 rounded-2xl p-6 shadow-sm">
+        <hr className="border-gray-200" />
+
+        <div
+          className="rounded-2xl p-6 shadow-sm"
+          style={{ background: "#EEF2FF", borderLeft: "4px solid #6366f1" }}
+        >
           <div className="flex items-center gap-2 mb-4">
             <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
               <Sparkles size={13} className="text-white" />
             </div>
-            <span className="text-sm font-semibold text-gray-800">AI Insight based on your goal</span>
-            <span className="ml-auto text-xs text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
+            <span className="text-sm font-semibold text-gray-800">AI Insight — based on your goal</span>
+            <span className="ml-auto text-xs text-indigo-600 bg-white border border-indigo-100 px-2 py-0.5 rounded-full font-medium">
               {result.intent}
             </span>
           </div>
@@ -99,16 +167,68 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
           </ul>
         </div>
 
+        <hr className="border-gray-200" />
+
+        <div
+          className="rounded-2xl p-6 shadow-sm"
+          style={{ background: "#F5F3FF", borderLeft: "4px solid #6366f1" }}
+        >
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center">
+              <Brain size={13} className="text-white" />
+            </div>
+            <span className="text-sm font-semibold text-gray-800">Smart Analysis</span>
+          </div>
+
+          {analysisSections.length > 0 ? (
+            <div className="space-y-4">
+              {analysisSections.map((section, i) => (
+                <div key={i}>
+                  {i > 0 && <hr className="border-indigo-100 mb-4" />}
+                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-500 mb-1.5">
+                    {section.label}
+                  </p>
+                  {section.label === "Overall Sentiment" ? (
+                    <span className={`inline-block text-xs font-semibold px-3 py-1 rounded-full ${getSentimentBadge(section.content)}`}>
+                      {section.content}
+                    </span>
+                  ) : section.label === "Key Takeaways" ? (
+                    <ul className="space-y-1.5">
+                      {section.content.split("\n").filter(Boolean).map((line, j) => (
+                        <li key={j} className="flex items-start gap-2 text-sm text-gray-700 leading-relaxed">
+                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                          {line.replace(/^[-•*\d.]\s*/, "")}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-700 leading-relaxed">{section.content}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-gray-400 italic">
+              <Loader2 size={14} className="animate-spin" />
+              Generating smart analysis...
+            </div>
+          )}
+        </div>
+
+        <hr className="border-gray-200" />
+
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <p className="text-sm font-semibold text-gray-800">Full Page Content</p>
           </div>
-          <textarea
-            readOnly
-            value={result.content}
-            className="w-full h-52 px-6 py-4 text-xs text-gray-600 font-mono resize-none focus:outline-none bg-gray-50"
-          />
+          <div className="overflow-y-auto" style={{ maxHeight: "300px" }}>
+            <pre className="px-6 py-4 text-xs text-gray-600 font-mono whitespace-pre-wrap bg-gray-50">
+              {result.content}
+            </pre>
+          </div>
         </div>
+
+        <hr className="border-gray-200" />
 
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <button
@@ -173,7 +293,7 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
           </button>
           <button
             onClick={onScrapeAnother}
-            className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-indigo-50 border-2 border-indigo-600 text-indigo-600 font-semibold py-3 rounded-xl text-sm transition-colors"
           >
             <RotateCcw size={16} />
             Scrape Another
