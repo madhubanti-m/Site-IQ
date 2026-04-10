@@ -28,14 +28,25 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
   async function handleSave() {
     setSaving(true);
     setSaveError("");
-    const { error } = await supabase.from("scrape_results").insert({
+
+    const payload = {
       url: result.url,
       intent: result.intent,
       title: result.title,
       content: result.content,
       links: result.links,
       summary: result.summary,
-    });
+    };
+
+    console.log("Inserting into scrape_results:", payload);
+
+    const { data, error } = await supabase
+      .from("scrape_results")
+      .insert(payload)
+      .select();
+
+    console.log("Supabase response — data:", data, "error:", error);
+
     setSaving(false);
     if (error) {
       setSaveError(error.message);
