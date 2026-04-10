@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-235b-a22b:free",
+        model: "qwen/qwen-2.5-coder-32b-instruct:free",
         messages: [
           {
             role: "system",
