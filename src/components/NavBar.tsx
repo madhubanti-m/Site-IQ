@@ -26,16 +26,39 @@ export default function NavBar({ active, onNavigate }: NavBarProps) {
           <span className="text-gray-900 font-semibold text-base tracking-tight">ScrapeIQ</span>
         </button>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center" style={{ gap: "8px" }}>
           {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                active === item.id
-                  ? "bg-indigo-50 text-indigo-600"
-                  : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-              }`}
+              style={{
+                height: "36px",
+                borderRadius: "20px",
+                padding: "8px 16px",
+                fontSize: "13px",
+                fontWeight: active === item.id ? 700 : 400,
+                border: active === item.id ? "none" : "1px solid #E0E7FF",
+                background: active === item.id ? "#6366f1" : "white",
+                color: active === item.id ? "white" : "#6366f1",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={(e) => {
+                if (active !== item.id) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "#EEF2FF";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#6366f1";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (active !== item.id) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "white";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#E0E7FF";
+                }
+              }}
             >
               {item.icon}
               {item.label}
