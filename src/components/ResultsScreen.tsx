@@ -40,6 +40,7 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
     if (error) {
       setSaveError(error.message);
     } else {
+      console.log("Saved successfully");
       setSaved(true);
       setTimeout(() => onSaved(), 1200);
     }
