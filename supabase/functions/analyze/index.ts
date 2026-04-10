@@ -21,7 +21,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const groqKey = Deno.env.get("GROQ_KEY") ?? "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";
+    const groqKey = Deno.env.get("GROQ_KEY") ?? "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";
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192",
+        model: "llama3-70b-8192",
         messages: [
           {
             role: "system",
