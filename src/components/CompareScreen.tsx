@@ -1,6 +1,25 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { GitCompare, Loader2, Save, CheckCircle2, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "../lib/supabase";
+
+const mdComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="text-sm text-gray-700 leading-relaxed mb-2 last:mb-0">{children}</p>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold text-gray-900">{children}</strong>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="space-y-1.5 my-2">{children}</ul>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="flex items-start gap-2 text-sm text-gray-700 leading-relaxed">
+      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+      <span>{children}</span>
+    </li>
+  ),
+};
 
 interface CompareRow {
   dimension: string;
@@ -304,7 +323,9 @@ export default function CompareScreen() {
                   </div>
                   <span className="text-sm font-semibold text-gray-800">Key Insight</span>
                 </div>
-                <p className="text-sm text-gray-700 leading-relaxed">{result.keyInsight}</p>
+                <div style={{ lineHeight: 1.6 }}>
+                  <ReactMarkdown components={mdComponents}>{result.keyInsight}</ReactMarkdown>
+                </div>
               </div>
             )}
 
