@@ -21,7 +21,14 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const openrouterKey = Deno.env.get("OPENROUTER_KEY") ?? "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";
+    const openrouterKey = Deno.env.get("OPENROUTER_KEY");
+
+    if (!openrouterKey) {
+      return new Response(JSON.stringify({ error: "OPENROUTER_KEY secret is not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -30,7 +37,7 @@ Deno.serve(async (req: Request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5.4-nano",
+        model: "openai/gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -48,7 +55,7 @@ Deno.serve(async (req: Request) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      return new Response(JSON.stringify({ error: `Groq error: ${errorText}` }), {
+      return new Response(JSON.stringify({ error: `OpenRouter error: ${errorText}` }), {
         status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
