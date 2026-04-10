@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
+        model: "qwen/qwen3-235b-a22b:free",
         messages: [
           {
             role: "system",
