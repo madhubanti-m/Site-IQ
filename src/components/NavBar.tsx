@@ -1,4 +1,4 @@
-import { Flame, Clock, Search } from "lucide-react";
+import { Flame, Clock, Search, GitCompare } from "lucide-react";
 import { Screen } from "../types";
 
 interface NavBarProps {
@@ -9,6 +9,7 @@ interface NavBarProps {
 export default function NavBar({ active, onNavigate }: NavBarProps) {
   const navItems: { id: Screen; label: string; icon: React.ReactNode }[] = [
     { id: "home", label: "Scrape", icon: <Search size={16} /> },
+    { id: "compare", label: "Compare", icon: <GitCompare size={16} /> },
     { id: "history", label: "History", icon: <Clock size={16} /> },
   ];
 

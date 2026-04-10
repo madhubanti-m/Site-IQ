@@ -3,6 +3,7 @@ import NavBar from "./components/NavBar";
 import HomeScreen from "./components/HomeScreen";
 import ResultsScreen from "./components/ResultsScreen";
 import HistoryScreen from "./components/HistoryScreen";
+import CompareScreen from "./components/CompareScreen";
 import { Screen, ScrapeResult } from "./types";
 
 export default function App() {
@@ -32,7 +33,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      <NavBar active={screen === "results" ? "home" : screen} onNavigate={handleNavigate} />
+      <NavBar active={screen === "results" ? "home" : screen as Screen} onNavigate={handleNavigate} />
       {screen === "home" && (
         <HomeScreen onResults={handleResults} />
       )}
@@ -45,6 +46,9 @@ export default function App() {
       )}
       {screen === "history" && (
         <HistoryScreen />
+      )}
+      {screen === "compare" && (
+        <CompareScreen />
       )}
     </div>
   );

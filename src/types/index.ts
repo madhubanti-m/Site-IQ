@@ -10,4 +10,4 @@ export interface ScrapeResult {
   created_at: string;
 }
 
-export type Screen = "home" | "results" | "history";
+export type Screen = "home" | "results" | "history" | "compare";
