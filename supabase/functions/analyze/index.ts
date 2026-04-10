@@ -21,48 +21,45 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const openrouterKey = Deno.env.get("OPENROUTER_KEY");
+    const anthropicKey = Deno.env.get("ANTHROPIC_KEY");
 
-    if (!openrouterKey) {
-      return new Response(JSON.stringify({ error: "OPENROUTER_KEY secret is not configured" }), {
+    if (!anthropicKey) {
+      return new Response(JSON.stringify({ error: "ANTHROPIC_KEY secret is not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openrouterKey}`,
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
+        model: "claude-haiku-4-5",
+        max_tokens: 512,
+        system: `You are a research assistant. The user is researching: ${intent}. Summarize only what is relevant to their goal from this webpage content. Respond with exactly 3 bullet points. Be specific, not generic.`,
         messages: [
-          {
-            role: "system",
-            content: `You are a research assistant. The user is researching: ${intent}. Summarize only what is relevant to their goal from this webpage content. Respond with exactly 3 bullet points. Be specific, not generic.`,
-          },
           {
             role: "user",
             content: content.slice(0, 8000),
           },
         ],
-        temperature: 0.3,
-        max_tokens: 512,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      return new Response(JSON.stringify({ error: `OpenRouter error: ${errorText}` }), {
+      return new Response(JSON.stringify({ error: `Anthropic error: ${errorText}` }), {
         status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const data = await response.json();
-    const summary = data.choices?.[0]?.message?.content ?? "";
+    const summary = data.content?.[0]?.text ?? "";
 
     return new Response(JSON.stringify({ summary }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
