@@ -21,16 +21,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const groqKey = Deno.env.get("GROQ_KEY") ?? "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";
+    const openrouterKey = Deno.env.get("OPENROUTER_KEY") ?? "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";
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${groqKey}`,
+        "Authorization": `Bearer ${openrouterKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama3-70b-8192",
+        model: "google/gemma-4-26b-a4b-it:free",
         messages: [
           {
             role: "system",
