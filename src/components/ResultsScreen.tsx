@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { Sparkles, Brain, Link2, ChevronDown, ChevronUp, Save, RotateCcw, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+
 import { supabase } from "../lib/supabase";
 import { ScrapeResult } from "../types";
 
@@ -40,6 +41,7 @@ interface ResultsScreenProps {
 
 export default function ResultsScreen({ result, onScrapeAnother, onSaved }: ResultsScreenProps) {
   const [linksOpen, setLinksOpen] = useState(false);
+  const [contentExpanded, setContentExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -159,13 +161,42 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
         <hr className="border-gray-200" />
 
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-800">Full Page Content</p>
-          </div>
-          <div className="overflow-y-auto" style={{ maxHeight: "300px" }}>
-            <pre className="px-6 py-4 text-xs text-gray-600 font-mono whitespace-pre-wrap bg-gray-50">
-              {result.content}
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); setContentExpanded((v) => !v); }}
+            className="w-full flex items-center justify-between px-6 py-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
+          >
+            <span>Full Page Content</span>
+            {contentExpanded ? <ChevronUp size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
+          </button>
+          <div className="border-t border-gray-100">
+            <pre className="px-6 py-4 text-xs text-gray-600 font-mono whitespace-pre-wrap bg-gray-50 overflow-x-auto" style={{ maxHeight: contentExpanded ? "400px" : undefined, overflowY: contentExpanded ? "auto" : "hidden" }}>
+              {contentExpanded
+                ? result.content
+                : result.content.split("\n").slice(0, 3).join("\n")}
             </pre>
+            {!contentExpanded && result.content.split("\n").length > 3 && (
+              <div className="px-6 pb-4 pt-0">
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setContentExpanded(true); }}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  Show full content
+                </button>
+              </div>
+            )}
+            {contentExpanded && (
+              <div className="px-6 pb-4 pt-0">
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setContentExpanded(false); }}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  Collapse
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -173,7 +204,8 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
 
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <button
-            onClick={() => setLinksOpen((v) => !v)}
+            type="button"
+            onClick={(e) => { e.preventDefault(); setLinksOpen((v) => !v); }}
             className="w-full flex items-center justify-between px-6 py-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center gap-2">
@@ -216,7 +248,8 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
 
         <div className="flex gap-3">
           <button
-            onClick={handleSave}
+            type="button"
+            onClick={(e) => { e.preventDefault(); handleSave(); }}
             disabled={saving || saved}
             className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"
           >
@@ -233,7 +266,8 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
             )}
           </button>
           <button
-            onClick={onScrapeAnother}
+            type="button"
+            onClick={(e) => { e.preventDefault(); onScrapeAnother(); }}
             className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-indigo-50 border-2 border-indigo-600 text-indigo-600 font-semibold py-3 rounded-xl text-sm transition-colors"
           >
             <RotateCcw size={16} />

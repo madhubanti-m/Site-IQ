@@ -126,7 +126,7 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
               onChange={(e) => setIntent(e.target.value)}
               placeholder="What are you looking for? e.g. pricing strategy, key features"
               disabled={loading}
-              onKeyDown={(e) => e.key === "Enter" && handleScrape()}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrape(); } }}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50 bg-gray-50"
             />
           </div>
@@ -136,7 +136,8 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
           )}
 
           <button
-            onClick={handleScrape}
+            type="button"
+            onClick={(e) => { e.preventDefault(); handleScrape(); }}
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm"
           >

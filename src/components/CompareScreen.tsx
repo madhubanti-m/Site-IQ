@@ -1,72 +1,51 @@
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import { GitCompare, Loader2, Save, CheckCircle2, Lightbulb } from "lucide-react";
+import { GitCompare, Loader2, Save, CheckCircle2, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
+interface CompareRow {
+  dimension: string;
+  col1: string;
+  col2: string;
+}
+
 interface CompareResult {
-  tableMarkdown: string;
+  rows: CompareRow[];
   keyInsight: string;
   domain1: string;
   domain2: string;
-  winnerDomain: string | null;
 }
 
-const tableComponents = {
-  table: ({ children }: { children?: React.ReactNode }) => (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">{children}</table>
-    </div>
-  ),
-  thead: ({ children }: { children?: React.ReactNode }) => (
-    <thead className="bg-indigo-50">{children}</thead>
-  ),
-  tbody: ({ children }: { children?: React.ReactNode }) => (
-    <tbody className="divide-y divide-gray-100">{children}</tbody>
-  ),
-  tr: ({ children }: { children?: React.ReactNode }) => (
-    <tr className="hover:bg-gray-50 transition-colors">{children}</tr>
-  ),
-  th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="px-4 py-2.5 text-left text-xs font-bold text-indigo-700 uppercase tracking-wider border-b border-indigo-100">
-      {children}
-    </th>
-  ),
-  td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="px-4 py-2.5 text-sm text-gray-700 align-top leading-relaxed">{children}</td>
-  ),
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-sm text-gray-700 leading-relaxed">{children}</p>
-  ),
-  strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-gray-900">{children}</strong>
-  ),
-};
+function parseComparisonTable(raw: string, domain1: string, domain2: string): CompareRow[] {
+  const lines = raw.split("\n");
+  const rows: CompareRow[] = [];
+  for (const line of lines) {
+    if (!line.trim().startsWith("|")) continue;
+    const cells = line
+      .split("|")
+      .map((c) => c.trim())
+      .filter((c) => c.length > 0);
+    if (cells.length < 3) continue;
+    if (/^[-:]+$/.test(cells[0])) continue;
+    const dim = cells[0];
+    if (
+      dim.toLowerCase() === "dimension" ||
+      dim.toLowerCase().includes(domain1.toLowerCase()) ||
+      dim.toLowerCase().includes(domain2.toLowerCase())
+    )
+      continue;
+    rows.push({ dimension: dim, col1: cells[1] ?? "", col2: cells[2] ?? "" });
+  }
+  return rows;
+}
 
-const insightComponents = {
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-sm text-gray-700 leading-relaxed">{children}</p>
-  ),
-  strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-gray-900">{children}</strong>
-  ),
-};
-
-function extractSections(raw: string): { tableMarkdown: string; keyInsight: string } {
+function extractSections(raw: string): { tableSection: string; keyInsight: string } {
   const insightMatch = raw.match(/##\s*Key Insight\s*\n([\s\S]*)/i);
   const keyInsight = insightMatch ? insightMatch[1].trim() : "";
-  const tableMarkdown = insightMatch ? raw.slice(0, insightMatch.index).trim() : raw.trim();
-  return { tableMarkdown, keyInsight };
+  const tableSection = insightMatch ? raw.slice(0, insightMatch.index).trim() : raw.trim();
+  return { tableSection, keyInsight };
 }
 
-function detectWinner(raw: string, domain1: string, domain2: string): string | null {
-  const winnerRow = raw.match(/Overall Winner[^\n]*\|([^\|]+)\|([^\|]+)/i);
-  if (!winnerRow) return null;
-  const col1 = winnerRow[1].toLowerCase();
-  const col2 = winnerRow[2].toLowerCase();
-  if (col1.includes("✓") || col1.includes("winner") || col1.includes("yes")) return domain1;
-  if (col2.includes("✓") || col2.includes("winner") || col2.includes("yes")) return domain2;
-  return null;
-}
+const PREVIEW_ROWS = 3;
 
 export default function CompareScreen() {
   const [url1, setUrl1] = useState("");
@@ -76,6 +55,7 @@ export default function CompareScreen() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<CompareResult | null>(null);
   const [rawResult, setRawResult] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -97,11 +77,18 @@ export default function CompareScreen() {
     return data.data?.markdown ?? data.data?.content ?? "";
   }
 
+  function handleCompareClick(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    handleCompare();
+  }
+
   async function handleCompare() {
     setError("");
     setResult(null);
+    setRawResult("");
     setSaved(false);
     setSaveError("");
+    setExpanded(false);
 
     if (!url1.trim() || !url2.trim()) {
       setError("Please enter both URLs.");
@@ -127,11 +114,11 @@ export default function CompareScreen() {
       const raw: string = data.result ?? "";
       const domain1: string = data.domain1 ?? new URL(url1).hostname;
       const domain2: string = data.domain2 ?? new URL(url2).hostname;
-      const { tableMarkdown, keyInsight } = extractSections(raw);
-      const winnerDomain = detectWinner(raw, domain1, domain2);
+      const { tableSection, keyInsight } = extractSections(raw);
+      const rows = parseComparisonTable(tableSection, domain1, domain2);
 
       setRawResult(raw);
-      setResult({ tableMarkdown, keyInsight, domain1, domain2, winnerDomain });
+      setResult({ rows, keyInsight, domain1, domain2 });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -139,7 +126,8 @@ export default function CompareScreen() {
     }
   }
 
-  async function handleSave() {
+  async function handleSave(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
     if (!result) return;
     setSaving(true);
     setSaveError("");
@@ -148,6 +136,7 @@ export default function CompareScreen() {
       url2,
       intent,
       comparison_result: rawResult,
+      key_insight: result.keyInsight,
     });
     setSaving(false);
     if (dbError) {
@@ -156,6 +145,12 @@ export default function CompareScreen() {
       setSaved(true);
     }
   }
+
+  const visibleRows = result
+    ? expanded
+      ? result.rows
+      : result.rows.slice(0, PREVIEW_ROWS)
+    : [];
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4">
@@ -209,7 +204,8 @@ export default function CompareScreen() {
           )}
 
           <button
-            onClick={handleCompare}
+            type="button"
+            onClick={handleCompareClick}
             disabled={loading}
             className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"
           >
@@ -237,11 +233,64 @@ export default function CompareScreen() {
                   {result.domain1} vs {result.domain2}
                 </span>
               </div>
-              <div className="p-6">
-                <ReactMarkdown components={tableComponents}>
-                  {result.tableMarkdown}
-                </ReactMarkdown>
+
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-indigo-600">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider w-40">
+                        Dimension
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+                        {result.domain1}
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+                        {result.domain2}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((row, i) => (
+                      <tr
+                        key={i}
+                        className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                      >
+                        <td className="px-4 py-3 text-xs font-semibold text-indigo-700 align-top whitespace-nowrap border-r border-gray-100">
+                          {row.dimension}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 align-top leading-relaxed">
+                          {row.col1}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 align-top leading-relaxed">
+                          {row.col2}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+
+              {result.rows.length > PREVIEW_ROWS && (
+                <div className="border-t border-gray-100 px-6 py-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setExpanded((v) => !v); }}
+                    className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                  >
+                    {expanded ? (
+                      <>
+                        <ChevronUp size={15} />
+                        Collapse
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={15} />
+                        Show full comparison
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {result.keyInsight && (
@@ -255,9 +304,7 @@ export default function CompareScreen() {
                   </div>
                   <span className="text-sm font-semibold text-gray-800">Key Insight</span>
                 </div>
-                <ReactMarkdown components={insightComponents}>
-                  {result.keyInsight}
-                </ReactMarkdown>
+                <p className="text-sm text-gray-700 leading-relaxed">{result.keyInsight}</p>
               </div>
             )}
 
@@ -266,6 +313,7 @@ export default function CompareScreen() {
             )}
 
             <button
+              type="button"
               onClick={handleSave}
               disabled={saving || saved}
               className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"

@@ -88,7 +88,8 @@ export default function HistoryScreen() {
                   className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all"
                 >
                   <button
-                    onClick={() => toggle(row.id)}
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); toggle(row.id); }}
                     className="w-full flex items-start gap-4 p-5 text-left hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
