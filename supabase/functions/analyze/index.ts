@@ -38,9 +38,19 @@ Deno.serve(async (req: Request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 512,
-        system: `You are a research assistant. The user is researching: ${intent}. Summarize only what is relevant to their goal from this webpage content. Respond with exactly 3 bullet points. Be specific, not generic.`,
+        system: `You are a smart research assistant analyzing a webpage for a user with a specific goal.
+The user's research goal is: ${intent}
+Rules:
+1. Extract what is most relevant to the user's goal from this page
+2. If page does not directly address the goal, find the closest relevant insights that still help the user
+3. NEVER refuse to answer
+4. ALWAYS provide exactly 3 bullet points
+5. If page has no relevance, provide 3 observations about what the page IS about that the user should know
+Format: exactly 3 bullet points.
+Use actual content from the page.
+Never say I cannot or I need to clarify.`,
         messages: [
           {
             role: "user",

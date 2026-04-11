@@ -51,7 +51,6 @@ function getDomain(url: string): string {
 
 export default function ResultsScreen({ result, onScrapeAnother, onSaved }: ResultsScreenProps) {
   const [linksOpen, setLinksOpen] = useState(false);
-  const [contentExpanded, setContentExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -155,7 +154,6 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
       setSaved(false);
       setSaveError("");
       setLinksOpen(false);
-      setContentExpanded(false);
     } catch {
     } finally {
       setLoadingSection(null);
@@ -289,48 +287,6 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
         )}
 
         {(sections.length > 0 || sectionsLoading) && <hr className="border-gray-200" />}
-
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); setContentExpanded((v) => !v); }}
-            className="w-full flex items-center justify-between px-6 py-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
-          >
-            <span>Full Page Content</span>
-            {contentExpanded ? <ChevronUp size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
-          </button>
-          <div className="border-t border-gray-100">
-            <pre className="px-6 py-4 text-xs text-gray-600 font-mono whitespace-pre-wrap bg-gray-50 overflow-x-auto" style={{ maxHeight: contentExpanded ? "400px" : undefined, overflowY: contentExpanded ? "auto" : "hidden" }}>
-              {contentExpanded
-                ? currentResult.content
-                : currentResult.content.split("\n").slice(0, 3).join("\n")}
-            </pre>
-            {!contentExpanded && currentResult.content.split("\n").length > 3 && (
-              <div className="px-6 pb-4 pt-0">
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); setContentExpanded(true); }}
-                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                >
-                  Show full content
-                </button>
-              </div>
-            )}
-            {contentExpanded && (
-              <div className="px-6 pb-4 pt-0">
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); setContentExpanded(false); }}
-                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                >
-                  Collapse
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <hr className="border-gray-200" />
 
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <button

@@ -38,14 +38,17 @@ Deno.serve(async (req: Request) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 1024,
-        system: `You are an expert analyst. Read this webpage content and provide a structured analysis in exactly this format:
+        system: `You are an expert analyst. NEVER refuse to analyze. ALWAYS complete all 4 sections regardless of content type.
+Read this webpage content and provide a structured analysis in exactly this format:
 
 1. WHAT IS THIS PAGE ABOUT — one sentence
 2. KEY TAKEAWAYS — 3 most important points
 3. WHO IS THIS USEFUL FOR — one sentence
-4. OVERALL SENTIMENT — Positive / Neutral / Negative with one line explanation`,
+4. OVERALL SENTIMENT — Positive / Neutral / Negative with one line explanation
+
+Never say you cannot analyze. Always complete all 4 sections.`,
         messages: [
           {
             role: "user",

@@ -17,7 +17,8 @@ export default function NavBar({ active, onNavigate }: NavBarProps) {
     <nav className="bg-white border-b border-gray-100 sticky top-0 z-50">
       <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
         <button
-          onClick={() => onNavigate("home")}
+          type="button"
+          onClick={(e) => { e.preventDefault(); onNavigate("home"); }}
           className="flex items-center gap-2 group"
         >
           <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
@@ -30,7 +31,8 @@ export default function NavBar({ active, onNavigate }: NavBarProps) {
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              type="button"
+              onClick={(e) => { e.preventDefault(); onNavigate(item.id); }}
               style={{
                 height: "36px",
                 borderRadius: "20px",
