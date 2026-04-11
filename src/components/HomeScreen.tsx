@@ -95,7 +95,7 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
             <img
               src="/ScrapeIQ-1.1.png"
               alt="ScrapeIQ"
-              style={{ height: "158px", width: "auto", objectFit: "contain" }}
+              style={{ height: "190px", width: "auto", objectFit: "contain" }}
             />
           </div>
           <p style={{ color: "var(--text-secondary)" }} className="text-lg">
