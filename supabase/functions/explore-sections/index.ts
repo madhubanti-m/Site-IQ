@@ -12,49 +12,39 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { intent, content } = await req.json();
+    const { links, domain } = await req.json();
 
-    if (!intent || !content) {
-      return new Response(JSON.stringify({ error: "intent and content are required" }), {
+    if (!links || !domain) {
+      return new Response(JSON.stringify({ error: "links and domain are required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const anthropicKey = Deno.env.get("ANTHROPIC_KEY");
-
     if (!anthropicKey) {
-      return new Response(JSON.stringify({ error: "ANTHROPIC_KEY secret is not configured" }), {
+      return new Response(JSON.stringify({ error: "ANTHROPIC_KEY not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const linksText = links.slice(0, 100).join("\n");
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": anthropicKey,
         "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
+        "content-type": "application/json",
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 512,
-        system: `You are a smart research assistant analyzing a webpage for a user with a specific goal.
-The user's research goal is: ${intent}
-Rules:
-1. Extract what is most relevant to the user's goal from this page
-2. If page does not directly address the goal, find the closest relevant insights that still help the user
-3. NEVER refuse to answer
-4. ALWAYS provide exactly 3 bullet points
-5. If page has no relevance, provide 3 observations about what the page IS about that the user should know
-Format: exactly 3 bullet points.
-Use actual content from the page.
-Never say I cannot or I need to clarify.`,
         messages: [
           {
             role: "user",
-            content: content.slice(0, 8000),
+            content: `From this list of URLs from ${domain}, identify the main navigation sections only. Return maximum 8 section names and their URLs. Ignore article links, pagination, login, footer, and utility pages. Return ONLY a valid JSON array with no additional text: [{"name": "SectionName", "url": "https://..."}]\n\nURLs:\n${linksText}`,
           },
         ],
       }),
@@ -62,16 +52,26 @@ Never say I cannot or I need to clarify.`,
 
     if (!response.ok) {
       const errorText = await response.text();
-      return new Response(JSON.stringify({ error: `Anthropic error: ${errorText}` }), {
+      return new Response(JSON.stringify({ error: `Claude API error: ${errorText}` }), {
         status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const data = await response.json();
-    const summary = data.content?.[0]?.text ?? "";
+    const text: string = data.content[0].text;
 
-    return new Response(JSON.stringify({ summary }), {
+    let sections: { name: string; url: string }[] = [];
+    try {
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) {
+        sections = JSON.parse(match[0]);
+      }
+    } catch {
+      sections = [];
+    }
+
+    return new Response(JSON.stringify({ sections }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

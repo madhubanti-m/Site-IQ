@@ -12,10 +12,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { intent, content } = await req.json();
+    const { content } = await req.json();
 
-    if (!intent || !content) {
-      return new Response(JSON.stringify({ error: "intent and content are required" }), {
+    if (!content) {
+      return new Response(JSON.stringify({ error: "content is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -39,18 +39,16 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 512,
-        system: `You are a smart research assistant analyzing a webpage for a user with a specific goal.
-The user's research goal is: ${intent}
-Rules:
-1. Extract what is most relevant to the user's goal from this page
-2. If page does not directly address the goal, find the closest relevant insights that still help the user
-3. NEVER refuse to answer
-4. ALWAYS provide exactly 3 bullet points
-5. If page has no relevance, provide 3 observations about what the page IS about that the user should know
-Format: exactly 3 bullet points.
-Use actual content from the page.
-Never say I cannot or I need to clarify.`,
+        max_tokens: 1024,
+        system: `You are an expert analyst. NEVER refuse to analyze. ALWAYS complete all 4 sections regardless of content type.
+Read this webpage content and provide a structured analysis in exactly this format:
+
+1. WHAT IS THIS PAGE ABOUT — one sentence
+2. KEY TAKEAWAYS — 3 most important points
+3. WHO IS THIS USEFUL FOR — one sentence
+4. OVERALL SENTIMENT — Positive / Neutral / Negative with one line explanation
+
+Never say you cannot analyze. Always complete all 4 sections.`,
         messages: [
           {
             role: "user",
@@ -69,9 +67,9 @@ Never say I cannot or I need to clarify.`,
     }
 
     const data = await response.json();
-    const summary = data.content?.[0]?.text ?? "";
+    const analysis = data.content?.[0]?.text ?? "";
 
-    return new Response(JSON.stringify({ summary }), {
+    return new Response(JSON.stringify({ analysis }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
