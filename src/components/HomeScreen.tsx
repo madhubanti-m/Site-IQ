@@ -93,9 +93,9 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
         <div className="text-center mb-10">
           <div className="flex justify-center mb-5">
             <img
-              src="/FullLogo_NoBuffer.png"
+              src="/ScrapeIQ-1.1.png"
               alt="ScrapeIQ"
-              style={{ height: "80px", width: "auto", objectFit: "contain" }}
+              style={{ height: "110px", width: "auto", objectFit: "contain" }}
             />
           </div>
           <p style={{ color: "var(--text-secondary)" }} className="text-lg">
