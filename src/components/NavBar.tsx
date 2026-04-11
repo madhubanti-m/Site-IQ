@@ -1,4 +1,4 @@
-import { Flame, Clock, Search, GitCompare } from "lucide-react";
+import { Clock, Search, GitCompare } from "lucide-react";
 import { Screen } from "../types";
 
 interface NavBarProps {
@@ -8,64 +8,81 @@ interface NavBarProps {
 
 export default function NavBar({ active, onNavigate }: NavBarProps) {
   const navItems: { id: Screen; label: string; icon: React.ReactNode }[] = [
-    { id: "home", label: "Scrape", icon: <Search size={16} /> },
-    { id: "compare", label: "Compare", icon: <GitCompare size={16} /> },
-    { id: "history", label: "History", icon: <Clock size={16} /> },
+    { id: "home", label: "Scrape", icon: <Search size={15} /> },
+    { id: "compare", label: "Compare", icon: <GitCompare size={15} /> },
+    { id: "history", label: "History", icon: <Clock size={15} /> },
   ];
 
   return (
-    <nav className="bg-white border-b border-gray-100 sticky top-0 z-50">
+    <nav
+      style={{
+        background: "rgba(11, 15, 30, 0.92)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        borderBottom: "1px solid var(--border-subtle)",
+      }}
+      className="sticky top-0 z-50"
+    >
       <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
         <button
           type="button"
           onClick={(e) => { e.preventDefault(); onNavigate("home"); }}
-          className="flex items-center gap-2 group"
+          className="flex items-center"
         >
-          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <Flame size={15} className="text-white" />
-          </div>
-          <span className="text-gray-900 font-semibold text-base tracking-tight">ScrapeIQ</span>
+          <img
+            src="/FullLogo_NoBuffer.png"
+            alt="ScrapeIQ"
+            style={{ height: "38px", width: "auto", objectFit: "contain" }}
+          />
         </button>
 
-        <div className="flex items-center" style={{ gap: "8px" }}>
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={(e) => { e.preventDefault(); onNavigate(item.id); }}
-              style={{
-                height: "36px",
-                borderRadius: "20px",
-                padding: "8px 16px",
-                fontSize: "13px",
-                fontWeight: active === item.id ? 700 : 400,
-                border: active === item.id ? "none" : "1px solid #E0E7FF",
-                background: active === item.id ? "#6366f1" : "white",
-                color: active === item.id ? "white" : "#6366f1",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                transition: "background 0.15s, color 0.15s, border-color 0.15s",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-              onMouseEnter={(e) => {
-                if (active !== item.id) {
-                  (e.currentTarget as HTMLButtonElement).style.background = "#EEF2FF";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#6366f1";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (active !== item.id) {
-                  (e.currentTarget as HTMLButtonElement).style.background = "white";
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#E0E7FF";
-                }
-              }}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-1.5">
+          {navItems.map((item) => {
+            const isActive = active === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={(e) => { e.preventDefault(); onNavigate(item.id); }}
+                style={{
+                  height: "34px",
+                  borderRadius: "20px",
+                  padding: "0 14px",
+                  fontSize: "13px",
+                  fontWeight: isActive ? 600 : 400,
+                  border: isActive ? "none" : "1px solid var(--border)",
+                  background: isActive
+                    ? "linear-gradient(135deg, #7c3aed, #8b5cf6)"
+                    : "transparent",
+                  color: isActive ? "white" : "var(--text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  boxShadow: isActive ? "0 0 16px rgba(139,92,246,0.35)" : "none",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(139,92,246,0.1)";
+                    (e.currentTarget as HTMLButtonElement).style.color = "var(--accent-violet-light)";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--accent-violet-light)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
+                  }
+                }}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       </div>
     </nav>

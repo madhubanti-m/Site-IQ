@@ -68,14 +68,17 @@ export default function ExploreSections({
   return (
     <div className="space-y-2">
       {breadcrumb && onBack && (
-        <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-          <span className="font-medium text-gray-700">
-            Now showing: <span className="text-indigo-600">{breadcrumb.section}</span> section
+        <div className="flex items-center gap-2 text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+          <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+            Now showing: <span style={{ color: "var(--accent-violet-light)" }}>{breadcrumb.section}</span> section
           </span>
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); onBack(); }}
-            className="flex items-center gap-1 text-indigo-500 hover:text-indigo-700 font-medium transition-colors ml-2"
+            className="flex items-center gap-1 font-medium transition-colors ml-2"
+            style={{ color: "var(--accent-violet-light)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--accent-cyan)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--accent-violet-light)"; }}
           >
             <ChevronLeft size={12} />
             Back to full page
@@ -83,7 +86,7 @@ export default function ExploreSections({
         </div>
       )}
 
-      <p className="text-xs text-gray-400 font-medium">Explore sections of this site</p>
+      <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Explore sections of this site</p>
 
       <div className="flex flex-wrap gap-2">
         {sections.map((section) => {
@@ -101,25 +104,28 @@ export default function ExploreSections({
                 borderRadius: "20px",
                 padding: "0 14px",
                 fontSize: "12px",
-                fontWeight: 500,
-                border: "1px solid #6366f1",
-                background: isActive ? "#6366f1" : "white",
-                color: isActive ? "white" : "#6366f1",
+                fontWeight: isActive ? 600 : 500,
+                border: isActive ? "none" : "1px solid var(--border)",
+                background: isActive ? "linear-gradient(135deg, #7c3aed, #8b5cf6)" : "transparent",
+                color: isActive ? "white" : "var(--accent-violet-light)",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
                 cursor: loadingSection !== null ? "not-allowed" : "pointer",
                 opacity: loadingSection !== null && !isLoading ? 0.5 : 1,
-                transition: "background 0.15s, color 0.15s",
+                transition: "background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s",
+                boxShadow: isActive ? "0 0 14px rgba(139,92,246,0.4)" : "none",
               }}
               onMouseEnter={(e) => {
                 if (!loadingSection && !isActive) {
-                  (e.currentTarget as HTMLButtonElement).style.background = "#EEF2FF";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(139,92,246,0.12)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--accent-violet-light)";
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
-                  (e.currentTarget as HTMLButtonElement).style.background = "white";
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)";
                 }
               }}
             >
@@ -131,7 +137,7 @@ export default function ExploreSections({
       </div>
 
       {loadingSection && (
-        <div className="flex items-center gap-2 text-xs text-indigo-600 mt-1">
+        <div className="flex items-center gap-2 text-xs mt-1" style={{ color: "var(--accent-violet-light)" }}>
           <Loader2 size={11} className="animate-spin" />
           Loading {sections.find((s) => s.url === loadingSection)?.name ?? "section"}...
         </div>

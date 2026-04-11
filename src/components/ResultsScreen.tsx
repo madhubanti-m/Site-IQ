@@ -15,16 +15,16 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const mdComponents = {
   h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="text-sm font-bold text-indigo-600 mb-2 mt-4 first:mt-0">{children}</h2>
+    <h2 style={{ color: "var(--accent-violet-light)" }} className="text-sm font-bold mb-2 mt-4 first:mt-0">{children}</h2>
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="text-sm font-bold text-indigo-500 mb-1.5 mt-3 first:mt-0">{children}</h3>
+    <h3 style={{ color: "var(--accent-violet-light)" }} className="text-sm font-bold mb-1.5 mt-3 first:mt-0">{children}</h3>
   ),
   p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="text-sm text-gray-700 leading-relaxed mb-2 last:mb-0">{children}</p>
+    <p style={{ color: "var(--text-secondary)" }} className="text-sm leading-relaxed mb-2 last:mb-0">{children}</p>
   ),
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-gray-900">{children}</strong>
+    <strong style={{ color: "var(--text-primary)" }} className="font-semibold">{children}</strong>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
     <ul className="space-y-1.5 my-2">{children}</ul>
@@ -33,8 +33,8 @@ const mdComponents = {
     <ol className="space-y-1.5 my-2 list-none pl-0">{children}</ol>
   ),
   li: ({ children }: { children?: React.ReactNode }) => (
-    <li className="flex items-start gap-2 text-sm text-gray-700 leading-relaxed">
-      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+    <li style={{ color: "var(--text-secondary)" }} className="flex items-start gap-2 text-sm leading-relaxed">
+      <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--accent-violet)" }} />
       <span>{children}</span>
     </li>
   ),
@@ -48,11 +48,7 @@ interface ResultsScreenProps {
 }
 
 function getDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
 }
 
 export default function ResultsScreen({
@@ -187,39 +183,65 @@ export default function ResultsScreen({
   const canDownloadPPT = Boolean(displayResult.title && displayResult.summary && displayResult.analysis);
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4 relative">
+    <div
+      className="py-10 px-4 relative"
+      style={{ minHeight: "calc(100vh - 56px)", background: "var(--bg-base)" }}
+    >
       <Toast toasts={toasts} onRemove={removeToast} />
 
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
           {breadcrumb && (
-            <div className="flex items-center gap-1 text-xs text-gray-400 mb-2">
-              <span className="font-medium text-gray-500">{breadcrumb.domain}</span>
+            <div className="flex items-center gap-1 text-xs mb-2" style={{ color: "var(--text-muted)" }}>
+              <span className="font-medium" style={{ color: "var(--text-secondary)" }}>{breadcrumb.domain}</span>
               <ChevronRight size={12} />
-              <span className="font-medium text-indigo-600">{breadcrumb.section}</span>
+              <span className="font-medium" style={{ color: "var(--accent-violet-light)" }}>{breadcrumb.section}</span>
             </div>
           )}
-          <h1 className="text-2xl font-bold text-gray-900 leading-tight">{displayResult.title}</h1>
+          <h1 className="text-2xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+            {displayResult.title}
+          </h1>
           <a
             href={displayResult.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-indigo-500 hover:text-indigo-700 mt-1 transition-colors"
+            className="inline-flex items-center gap-1 text-sm mt-1 transition-colors"
+            style={{ color: "var(--accent-violet-light)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-cyan)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--accent-violet-light)")}
           >
             {displayResult.url}
             <ExternalLink size={12} />
           </a>
         </div>
 
-        <hr className="border-gray-200" />
+        <hr style={{ borderColor: "var(--border-subtle)" }} />
 
-        <div className="rounded-2xl p-6 shadow-sm" style={{ background: "#EEF2FF", borderLeft: "4px solid #6366f1" }}>
+        <div
+          className="rounded-2xl p-6"
+          style={{
+            background: "rgba(139,92,246,0.08)",
+            border: "1px solid rgba(139,92,246,0.25)",
+          }}
+        >
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
+            <div
+              className="w-6 h-6 rounded-md flex items-center justify-center"
+              style={{ background: "var(--accent-violet)" }}
+            >
               <Sparkles size={13} className="text-white" />
             </div>
-            <span className="text-sm font-semibold text-gray-800">AI Insight — based on your goal</span>
-            <span className="ml-auto text-xs text-indigo-600 bg-white border border-indigo-100 px-2 py-0.5 rounded-full font-medium">
+            <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              AI Insight — based on your goal
+            </span>
+            <span
+              className="ml-auto text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{
+                color: "var(--accent-violet-light)",
+                background: "rgba(139,92,246,0.15)",
+                border: "1px solid rgba(139,92,246,0.3)",
+              }}
+            >
               {displayResult.intent}
             </span>
           </div>
@@ -227,33 +249,42 @@ export default function ResultsScreen({
             {displayResult.summary ? (
               <ReactMarkdown components={mdComponents}>{displayResult.summary}</ReactMarkdown>
             ) : (
-              <p className="text-sm text-gray-500 italic">No insights generated.</p>
+              <p className="text-sm italic" style={{ color: "var(--text-muted)" }}>No insights generated.</p>
             )}
           </div>
         </div>
 
-        <hr className="border-gray-200" />
+        <hr style={{ borderColor: "var(--border-subtle)" }} />
 
-        <div className="rounded-2xl p-6 shadow-sm" style={{ background: "#F5F3FF", borderLeft: "4px solid #6366f1" }}>
+        <div
+          className="rounded-2xl p-6"
+          style={{
+            background: "rgba(34,211,238,0.05)",
+            border: "1px solid rgba(34,211,238,0.15)",
+          }}
+        >
           <div className="flex items-center gap-2 mb-5">
-            <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center">
-              <Brain size={13} className="text-white" />
+            <div
+              className="w-6 h-6 rounded-md flex items-center justify-center"
+              style={{ background: "rgba(34,211,238,0.2)", border: "1px solid rgba(34,211,238,0.3)" }}
+            >
+              <Brain size={13} style={{ color: "var(--accent-cyan)" }} />
             </div>
-            <span className="text-sm font-semibold text-gray-800">Smart Analysis</span>
+            <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Smart Analysis</span>
           </div>
           {displayResult.analysis ? (
             <div style={{ lineHeight: 1.6 }}>
               <ReactMarkdown components={mdComponents}>{displayResult.analysis}</ReactMarkdown>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-sm text-gray-400 italic">
-              <Loader2 size={14} className="animate-spin" />
+            <div className="flex items-center gap-2 text-sm italic" style={{ color: "var(--text-muted)" }}>
+              <Loader2 size={14} className="animate-spin" style={{ color: "var(--accent-violet)" }} />
               Generating smart analysis...
             </div>
           )}
         </div>
 
-        <hr className="border-gray-200" />
+        <hr style={{ borderColor: "var(--border-subtle)" }} />
 
         <ExploreSections
           sections={sections}
@@ -264,15 +295,27 @@ export default function ResultsScreen({
           onBack={handleBack}
         />
 
-        {sections.length >= 2 && <hr className="border-gray-200" />}
+        {sections.length >= 2 && <hr style={{ borderColor: "var(--border-subtle)" }} />}
 
-        <div className="flex items-center gap-2 text-sm text-gray-600 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
-          <Link2 size={14} className="text-indigo-400 flex-shrink-0" />
+        <div
+          className="flex items-center gap-2 text-sm rounded-xl px-4 py-3"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          <Link2 size={14} style={{ color: "var(--accent-violet-light)", flexShrink: 0 }} />
           <span className="font-medium">{displayResult.links.length} links found on this page</span>
         </div>
 
         {saveError && (
-          <p className="text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-lg">{saveError}</p>
+          <p
+            className="text-sm px-4 py-2.5 rounded-lg"
+            style={{ color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}
+          >
+            {saveError}
+          </p>
         )}
 
         <div className="flex gap-3">
@@ -280,7 +323,7 @@ export default function ResultsScreen({
             <button
               type="button"
               onClick={handleDownloadPPT}
-              className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 px-5 rounded-xl text-sm transition-colors"
+              className="btn-ghost flex items-center justify-center gap-2 py-3 px-5 rounded-xl text-sm"
             >
               <Download size={15} />
               Download PPT
@@ -290,7 +333,7 @@ export default function ResultsScreen({
             type="button"
             onClick={handleSave}
             disabled={saving || saved}
-            className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"
+            className="flex-1 btn-primary flex items-center justify-center gap-2 py-3 rounded-xl text-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {saved ? (
               <><CheckCircle2 size={16} /> Saved!</>
@@ -301,7 +344,7 @@ export default function ResultsScreen({
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); onScrapeAnother(); }}
-            className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-indigo-50 border-2 border-indigo-600 text-indigo-600 font-semibold py-3 rounded-xl text-sm transition-colors"
+            className="flex-1 btn-ghost flex items-center justify-center gap-2 py-3 rounded-xl text-sm"
           >
             <RotateCcw size={16} />
             Scrape Another

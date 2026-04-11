@@ -33,11 +33,24 @@ function ToastItem({ toast, onRemove }: { toast: ToastMessage; onRemove: (id: st
     return () => clearTimeout(timer);
   }, [toast.id, onRemove]);
 
-  const bg = toast.type === "success" ? "bg-green-600" : "bg-red-600";
+  const isSuccess = toast.type === "success";
 
   return (
     <div
-      className={`flex items-center gap-2 ${bg} text-white text-sm font-semibold px-5 py-3 rounded-full shadow-lg pointer-events-auto transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}
+      className={`flex items-center gap-2 text-sm font-semibold px-5 py-3 rounded-full pointer-events-auto transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}
+      style={{
+        background: isSuccess
+          ? "linear-gradient(135deg, rgba(124,58,237,0.95), rgba(139,92,246,0.95))"
+          : "rgba(185,28,28,0.92)",
+        border: isSuccess
+          ? "1px solid rgba(167,139,250,0.5)"
+          : "1px solid rgba(248,113,113,0.4)",
+        boxShadow: isSuccess
+          ? "0 0 24px rgba(139,92,246,0.5), 0 4px 16px rgba(0,0,0,0.5)"
+          : "0 0 16px rgba(220,38,38,0.4), 0 4px 16px rgba(0,0,0,0.5)",
+        color: "white",
+        backdropFilter: "blur(12px)",
+      }}
     >
       {toast.type === "success" ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
       {toast.message}

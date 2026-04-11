@@ -1,3 +1,112 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --bg-base: #060810;
+  --bg-panel: #0f1526;
+  --bg-card: #151d32;
+  --bg-input: #1c2540;
+  --border: #2d3a60;
+  --border-subtle: #1c2540;
+  --text-primary: #e8eaf6;
+  --text-secondary: #9ba8c9;
+  --text-muted: #5a6a92;
+  --accent-violet: #8b5cf6;
+  --accent-violet-light: #a78bfa;
+  --accent-cyan: #22d3ee;
+  --accent-glow: rgba(139, 92, 246, 0.25);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-panel);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-violet);
+}
+
+.glass-card {
+  background: rgba(15, 21, 38, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.violet-glow {
+  box-shadow: 0 0 24px rgba(139, 92, 246, 0.2), 0 0 48px rgba(139, 92, 246, 0.08);
+}
+
+.input-dark {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-dark::placeholder {
+  color: var(--text-muted);
+}
+.input-dark:focus {
+  outline: none;
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+  color: white;
+  font-weight: 600;
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+}
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+}
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--accent-violet-light);
+  color: var(--accent-violet-light);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.chip-active {
+  background: var(--accent-violet) !important;
+  color: white !important;
+  border-color: var(--accent-violet) !important;
+}
+.chip-inactive {
+  background: transparent !important;
+  color: var(--accent-violet-light) !important;
+  border-color: var(--border) !important;
+}
+.chip-inactive:hover {
+  background: rgba(139, 92, 246, 0.12) !important;
+  border-color: var(--accent-violet-light) !important;
+}

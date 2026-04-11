@@ -82,7 +82,7 @@ export default function App() {
   const activeNavScreen: Screen = screen === "results" ? "home" : screen;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen font-sans" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
       <NavBar active={activeNavScreen} onNavigate={handleNavigate} />
 
       <div style={{ display: screen === "home" ? "block" : "none" }}>

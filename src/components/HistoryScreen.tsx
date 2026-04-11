@@ -55,13 +55,20 @@ export default function HistoryScreen({ historyState, setHistoryState }: History
   const loading = !loaded;
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4">
+    <div style={{ minHeight: "calc(100vh - 56px)", background: "var(--bg-base)" }} className="py-10 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-2 mb-6">
-          <Clock size={18} className="text-indigo-600" />
-          <h2 className="text-xl font-bold text-gray-900">Scrape History</h2>
+          <Clock size={18} style={{ color: "var(--accent-violet-light)" }} />
+          <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>Scrape History</h2>
           {!loading && (
-            <span className="ml-auto bg-gray-200 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">
+            <span
+              className="ml-auto text-xs font-bold px-2.5 py-1 rounded-full"
+              style={{
+                background: "rgba(139,92,246,0.15)",
+                color: "var(--accent-violet-light)",
+                border: "1px solid rgba(139,92,246,0.3)",
+              }}
+            >
               {rows.length} saved
             </span>
           )}
@@ -70,9 +77,13 @@ export default function HistoryScreen({ historyState, setHistoryState }: History
         {loading && (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse">
-                <div className="h-4 bg-gray-100 rounded w-3/4 mb-2" />
-                <div className="h-3 bg-gray-100 rounded w-1/2" />
+              <div
+                key={i}
+                className="rounded-2xl p-5 animate-pulse"
+                style={{ background: "var(--bg-panel)", border: "1px solid var(--border)" }}
+              >
+                <div className="h-4 rounded w-3/4 mb-2" style={{ background: "var(--bg-card)" }} />
+                <div className="h-3 rounded w-1/2" style={{ background: "var(--bg-card)" }} />
               </div>
             ))}
           </div>
@@ -80,11 +91,14 @@ export default function HistoryScreen({ historyState, setHistoryState }: History
 
         {!loading && rows.length === 0 && (
           <div className="text-center py-20">
-            <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Search size={24} className="text-indigo-400" />
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)" }}
+            >
+              <Search size={24} style={{ color: "var(--accent-violet-light)" }} />
             </div>
-            <p className="text-gray-500 font-medium">No scrapes saved yet</p>
-            <p className="text-sm text-gray-400 mt-1">Go scrape a page and save the results.</p>
+            <p className="font-medium" style={{ color: "var(--text-secondary)" }}>No scrapes saved yet</p>
+            <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>Go scrape a page and save the results.</p>
           </div>
         )}
 
@@ -96,15 +110,19 @@ export default function HistoryScreen({ historyState, setHistoryState }: History
               return (
                 <div
                   key={row.id}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all"
+                  className="rounded-2xl overflow-hidden transition-all"
+                  style={{ background: "var(--bg-panel)", border: "1px solid var(--border)" }}
                 >
                   <button
                     type="button"
                     onClick={(e) => { e.preventDefault(); toggle(row.id); }}
-                    className="w-full flex items-start gap-4 p-5 text-left hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-start gap-4 p-5 text-left transition-colors"
+                    style={{ background: "transparent" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(139,92,246,0.05)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
+                      <p className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>
                         {row.title || row.url}
                       </p>
                       <a
@@ -112,39 +130,63 @@ export default function HistoryScreen({ historyState, setHistoryState }: History
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 mt-0.5 transition-colors truncate max-w-full"
+                        className="inline-flex items-center gap-1 text-xs mt-0.5 transition-colors truncate max-w-full"
+                        style={{ color: "var(--accent-violet-light)" }}
                       >
                         <ExternalLink size={10} />
                         <span className="truncate">{row.url}</span>
                       </a>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs bg-indigo-50 text-indigo-600 font-medium px-2 py-0.5 rounded-full truncate max-w-xs">
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full truncate max-w-xs"
+                          style={{
+                            color: "var(--accent-violet-light)",
+                            background: "rgba(139,92,246,0.12)",
+                            border: "1px solid rgba(139,92,246,0.25)",
+                          }}
+                        >
                           {row.intent}
                         </span>
-                        <span className="text-xs text-gray-400 flex-shrink-0">{timeAgo(row.created_at)}</span>
+                        <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                          {timeAgo(row.created_at)}
+                        </span>
                       </div>
                     </div>
                     <div className="flex-shrink-0 mt-0.5">
-                      {isOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                      {isOpen
+                        ? <ChevronUp size={16} style={{ color: "var(--text-muted)" }} />
+                        : <ChevronDown size={16} style={{ color: "var(--text-muted)" }} />
+                      }
                     </div>
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-gray-100 px-5 py-4 bg-indigo-50/30">
+                    <div
+                      className="px-5 py-4"
+                      style={{
+                        borderTop: "1px solid var(--border)",
+                        background: "rgba(139,92,246,0.05)",
+                      }}
+                    >
                       <div className="flex items-center gap-1.5 mb-3">
-                        <Sparkles size={13} className="text-indigo-600" />
-                        <span className="text-xs font-semibold text-indigo-700">AI Summary</span>
+                        <Sparkles size={13} style={{ color: "var(--accent-violet-light)" }} />
+                        <span className="text-xs font-semibold" style={{ color: "var(--accent-violet-light)" }}>
+                          AI Summary
+                        </span>
                       </div>
                       <ul className="space-y-2.5">
                         {bullets.length > 0 ? bullets.map((b, i) => (
                           <li key={i} className="flex items-start gap-2.5">
-                            <span className="mt-0.5 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            <span
+                              className="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white"
+                              style={{ background: "var(--accent-violet)" }}
+                            >
                               {i + 1}
                             </span>
-                            <span className="text-xs text-gray-700 leading-relaxed">{b}</span>
+                            <span className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{b}</span>
                           </li>
                         )) : (
-                          <li className="text-xs text-gray-400 italic">No summary available.</li>
+                          <li className="text-xs italic" style={{ color: "var(--text-muted)" }}>No summary available.</li>
                         )}
                       </ul>
                     </div>

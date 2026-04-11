@@ -73,15 +73,7 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
       const { summary } = await analyzeRes.json();
       const { analysis } = await smartRes.json();
 
-      onResults({
-        url: url.trim(),
-        intent: intent.trim(),
-        title,
-        content,
-        links,
-        summary,
-        analysis,
-      });
+      onResults({ url: url.trim(), intent: intent.trim(), title, content, links, summary, analysis });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -90,19 +82,41 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
   }
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-gray-50 flex flex-col items-center justify-center px-4 py-16">
+    <div
+      className="flex flex-col items-center justify-center px-4 py-16"
+      style={{
+        minHeight: "calc(100vh - 56px)",
+        background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(139,92,246,0.18) 0%, transparent 60%), var(--bg-base)",
+      }}
+    >
       <div className="w-full max-w-xl">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-gray-900 mb-3 tracking-tight">
-            Scrape<span className="text-indigo-600">IQ</span>
-          </h1>
-          <p className="text-gray-500 text-lg">Scrape smarter. Research faster.</p>
+          <div className="flex justify-center mb-5">
+            <img
+              src="/FullLogo_NoBuffer.png"
+              alt="ScrapeIQ"
+              style={{ height: "80px", width: "auto", objectFit: "contain" }}
+            />
+          </div>
+          <p style={{ color: "var(--text-secondary)" }} className="text-lg">
+            Scrape smarter. Research faster.
+          </p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 space-y-5">
+        <div
+          className="rounded-2xl p-8 space-y-5"
+          style={{
+            background: "var(--bg-panel)",
+            border: "1px solid var(--border)",
+            boxShadow: "0 0 40px rgba(139,92,246,0.1), 0 8px 32px rgba(0,0,0,0.4)",
+          }}
+        >
           <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-              <Globe size={14} className="text-indigo-500" />
+            <label
+              className="flex items-center gap-1.5 text-sm font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <Globe size={14} style={{ color: "var(--accent-violet-light)" }} />
               Website URL
             </label>
             <input
@@ -111,13 +125,16 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
               onChange={(e) => setUrl(e.target.value)}
               placeholder="Paste any website URL"
               disabled={loading}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50 bg-gray-50"
+              className="input-dark w-full px-4 py-3 rounded-xl text-sm disabled:opacity-50"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
-              <Target size={14} className="text-indigo-500" />
+            <label
+              className="flex items-center gap-1.5 text-sm font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <Target size={14} style={{ color: "var(--accent-violet-light)" }} />
               Research Intent
             </label>
             <input
@@ -127,19 +144,24 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
               placeholder="What are you looking for? e.g. pricing strategy, key features"
               disabled={loading}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrape(); } }}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-50 bg-gray-50"
+              className="input-dark w-full px-4 py-3 rounded-xl text-sm disabled:opacity-50"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-lg">{error}</p>
+            <p
+              className="text-sm px-4 py-2.5 rounded-lg"
+              style={{ color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}
+            >
+              {error}
+            </p>
           )}
 
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); handleScrape(); }}
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors text-sm"
+            className="btn-primary w-full py-3 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? (
               <>
@@ -155,7 +177,7 @@ export default function HomeScreen({ onResults }: HomeScreenProps) {
           </button>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
+        <p className="text-center text-xs mt-6" style={{ color: "var(--text-muted)" }}>
           Powered by Firecrawl + Claude AI
         </p>
       </div>
