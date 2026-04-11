@@ -5,7 +5,7 @@ import {
   CheckCircle2, Loader2, ChevronRight, Download,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { ScrapeResult } from "../types";
+import { ScrapeResult, ScrapeScreenState } from "../types";
 import ExploreSections, { Section, extractSections } from "./ExploreSections";
 import Toast, { ToastMessage } from "./Toast";
 import { downloadScrapePPT } from "../lib/pptExport";
@@ -41,9 +41,10 @@ const mdComponents = {
 };
 
 interface ResultsScreenProps {
-  result: Omit<ScrapeResult, "id" | "created_at">;
+  scrapeState: ScrapeScreenState;
+  setScrapeState: React.Dispatch<React.SetStateAction<ScrapeScreenState>>;
   onScrapeAnother: () => void;
-  onSaved: () => void;
+  onHistoryAdded: () => void;
 }
 
 function getDomain(url: string): string {
@@ -54,18 +55,19 @@ function getDomain(url: string): string {
   }
 }
 
-export default function ResultsScreen({ result, onScrapeAnother, onSaved }: ResultsScreenProps) {
+export default function ResultsScreen({
+  scrapeState,
+  setScrapeState,
+  onScrapeAnother,
+  onHistoryAdded,
+}: ResultsScreenProps) {
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-
-  const [sections, setSections] = useState<Section[]>([]);
   const [loadingSection, setLoadingSection] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [currentResult, setCurrentResult] = useState(result);
-  const [originalResult, setOriginalResult] = useState(result);
-  const [breadcrumb, setBreadcrumb] = useState<{ domain: string; section: string } | null>(null);
+  const [sections, setSections] = useState<Section[]>([]);
+
+  const { result, currentResult, breadcrumb, activeSection, saved } = scrapeState;
 
   const addToast = useCallback((message: string, type: "success" | "error" = "success") => {
     const id = Math.random().toString(36).slice(2);
@@ -77,29 +79,24 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
   }, []);
 
   useEffect(() => {
-    setCurrentResult(result);
-    setOriginalResult(result);
-    setBreadcrumb(null);
-    setActiveSection(null);
-    setSaved(false);
-    setSaveError("");
-    setSections(extractSections(result.links ?? [], result.url));
+    if (result) {
+      setSections(extractSections(result.links ?? [], result.url));
+      setSaveError("");
+    }
   }, [result]);
 
+  const displayResult = currentResult ?? result;
+
   async function handleSectionClick(section: Section) {
+    if (!result) return;
     setLoadingSection(section.url);
     try {
       const scrapeRes = await fetch(`${SUPABASE_URL}/functions/v1/scrape`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ url: section.url }),
       });
-
       if (!scrapeRes.ok) throw new Error("Scraping failed");
-
       const scrapeData = await scrapeRes.json();
       const content: string = scrapeData.data?.markdown ?? "";
       const title: string = scrapeData.data?.metadata?.title ?? section.url;
@@ -108,18 +105,12 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
       const [analyzeRes, smartRes] = await Promise.all([
         fetch(`${SUPABASE_URL}/functions/v1/analyze`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
           body: JSON.stringify({ intent: result.intent, content }),
         }),
         fetch(`${SUPABASE_URL}/functions/v1/smart-analysis`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
           body: JSON.stringify({ content }),
         }),
       ]);
@@ -127,19 +118,13 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
       const { summary } = analyzeRes.ok ? await analyzeRes.json() : { summary: "" };
       const { analysis } = smartRes.ok ? await smartRes.json() : { analysis: "" };
 
-      setCurrentResult({
-        url: section.url,
-        intent: result.intent,
-        title,
-        content,
-        links,
-        summary,
-        analysis,
-      });
-      setActiveSection(section.url);
-      setBreadcrumb({ domain: getDomain(result.url), section: section.name });
-      setSaved(false);
-      setSaveError("");
+      setScrapeState((prev) => ({
+        ...prev,
+        currentResult: { url: section.url, intent: result.intent, title, content, links, summary, analysis },
+        breadcrumb: { domain: getDomain(result.url), section: section.name },
+        activeSection: section.url,
+        saved: false,
+      }));
     } catch {
       addToast("Failed to load section.", "error");
     } finally {
@@ -148,55 +133,58 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
   }
 
   function handleBack() {
-    setCurrentResult(originalResult);
-    setBreadcrumb(null);
-    setActiveSection(null);
-    setSaved(false);
-    setSaveError("");
+    setScrapeState((prev) => ({
+      ...prev,
+      currentResult: prev.result,
+      breadcrumb: null,
+      activeSection: null,
+      saved: false,
+    }));
   }
 
   async function handleSave(e: React.MouseEvent) {
     e.preventDefault();
+    if (!displayResult) return;
     setSaving(true);
     setSaveError("");
 
-    const payload = {
-      url: currentResult.url,
-      intent: currentResult.intent,
-      title: currentResult.title,
-      content: currentResult.content,
-      links: currentResult.links,
-      summary: currentResult.summary,
-      analysis: currentResult.analysis,
-    };
-
-    const { error } = await supabase.from("scrape_results").insert(payload).select();
+    const { error } = await supabase.from("scrape_results").insert({
+      url: displayResult.url,
+      intent: displayResult.intent,
+      title: displayResult.title,
+      content: displayResult.content,
+      links: displayResult.links,
+      summary: displayResult.summary,
+      analysis: displayResult.analysis,
+    }).select();
 
     setSaving(false);
     if (error) {
       setSaveError(error.message);
       addToast("Save failed: " + error.message, "error");
     } else {
-      setSaved(true);
-      addToast("Saved to history!");
-      setTimeout(() => onSaved(), 1500);
+      setScrapeState((prev) => ({ ...prev, saved: true }));
+      addToast("Saved to History!");
+      onHistoryAdded();
     }
   }
 
   function handleDownloadPPT(e: React.MouseEvent) {
     e.preventDefault();
-    if (!currentResult.summary || !currentResult.analysis) return;
+    if (!displayResult?.summary || !displayResult?.analysis) return;
     downloadScrapePPT({
-      title: currentResult.title,
-      url: currentResult.url,
-      intent: currentResult.intent,
-      summary: currentResult.summary,
-      analysis: currentResult.analysis,
+      title: displayResult.title,
+      url: displayResult.url,
+      intent: displayResult.intent,
+      summary: displayResult.summary,
+      analysis: displayResult.analysis,
     });
     addToast("PPT downloaded");
   }
 
-  const canDownloadPPT = Boolean(currentResult.title && currentResult.summary && currentResult.analysis);
+  if (!displayResult) return null;
+
+  const canDownloadPPT = Boolean(displayResult.title && displayResult.summary && displayResult.analysis);
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4 relative">
@@ -211,38 +199,33 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
               <span className="font-medium text-indigo-600">{breadcrumb.section}</span>
             </div>
           )}
-          <h1 className="text-2xl font-bold text-gray-900 leading-tight">
-            {currentResult.title}
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900 leading-tight">{displayResult.title}</h1>
           <a
-            href={currentResult.url}
+            href={displayResult.url}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-indigo-500 hover:text-indigo-700 mt-1 transition-colors"
           >
-            {currentResult.url}
+            {displayResult.url}
             <ExternalLink size={12} />
           </a>
         </div>
 
         <hr className="border-gray-200" />
 
-        <div
-          className="rounded-2xl p-6 shadow-sm"
-          style={{ background: "#EEF2FF", borderLeft: "4px solid #6366f1" }}
-        >
+        <div className="rounded-2xl p-6 shadow-sm" style={{ background: "#EEF2FF", borderLeft: "4px solid #6366f1" }}>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
               <Sparkles size={13} className="text-white" />
             </div>
             <span className="text-sm font-semibold text-gray-800">AI Insight — based on your goal</span>
             <span className="ml-auto text-xs text-indigo-600 bg-white border border-indigo-100 px-2 py-0.5 rounded-full font-medium">
-              {currentResult.intent}
+              {displayResult.intent}
             </span>
           </div>
           <div style={{ lineHeight: 1.6 }}>
-            {currentResult.summary ? (
-              <ReactMarkdown components={mdComponents}>{currentResult.summary}</ReactMarkdown>
+            {displayResult.summary ? (
+              <ReactMarkdown components={mdComponents}>{displayResult.summary}</ReactMarkdown>
             ) : (
               <p className="text-sm text-gray-500 italic">No insights generated.</p>
             )}
@@ -251,20 +234,16 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
 
         <hr className="border-gray-200" />
 
-        <div
-          className="rounded-2xl p-6 shadow-sm"
-          style={{ background: "#F5F3FF", borderLeft: "4px solid #6366f1" }}
-        >
+        <div className="rounded-2xl p-6 shadow-sm" style={{ background: "#F5F3FF", borderLeft: "4px solid #6366f1" }}>
           <div className="flex items-center gap-2 mb-5">
             <div className="w-6 h-6 bg-indigo-500 rounded-md flex items-center justify-center">
               <Brain size={13} className="text-white" />
             </div>
             <span className="text-sm font-semibold text-gray-800">Smart Analysis</span>
           </div>
-
-          {currentResult.analysis ? (
+          {displayResult.analysis ? (
             <div style={{ lineHeight: 1.6 }}>
-              <ReactMarkdown components={mdComponents}>{currentResult.analysis}</ReactMarkdown>
+              <ReactMarkdown components={mdComponents}>{displayResult.analysis}</ReactMarkdown>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm text-gray-400 italic">
@@ -289,7 +268,7 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
 
         <div className="flex items-center gap-2 text-sm text-gray-600 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
           <Link2 size={14} className="text-indigo-400 flex-shrink-0" />
-          <span className="font-medium">{currentResult.links.length} links found on this page</span>
+          <span className="font-medium">{displayResult.links.length} links found on this page</span>
         </div>
 
         {saveError && (
@@ -314,15 +293,9 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
             className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"
           >
             {saved ? (
-              <>
-                <CheckCircle2 size={16} />
-                Saved!
-              </>
+              <><CheckCircle2 size={16} /> Saved!</>
             ) : (
-              <>
-                <Save size={16} />
-                {saving ? "Saving..." : "Save to History"}
-              </>
+              <><Save size={16} /> {saving ? "Saving..." : "Save to History"}</>
             )}
           </button>
           <button

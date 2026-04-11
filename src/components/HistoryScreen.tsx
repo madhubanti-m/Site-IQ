@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { ScrapeResult } from "../types";
+import { ScrapeResult, HistoryScreenState } from "../types";
 import { Clock, ChevronDown, ChevronUp, ExternalLink, Sparkles, Search } from "lucide-react";
 
 function timeAgo(dateStr: string): string {
@@ -21,27 +21,38 @@ function parseBullets(summary: string): string[] {
     .slice(0, 3);
 }
 
-export default function HistoryScreen() {
-  const [rows, setRows] = useState<ScrapeResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+interface HistoryScreenProps {
+  historyState: HistoryScreenState;
+  setHistoryState: React.Dispatch<React.SetStateAction<HistoryScreenState>>;
+}
+
+export default function HistoryScreen({ historyState, setHistoryState }: HistoryScreenProps) {
+  const { rows, loaded, expandedId } = historyState;
 
   useEffect(() => {
+    if (loaded) return;
     async function load() {
-      setLoading(true);
       const { data } = await supabase
         .from("scrape_results")
         .select("*")
         .order("created_at", { ascending: false });
-      setRows((data as ScrapeResult[]) ?? []);
-      setLoading(false);
+      setHistoryState((prev) => ({
+        ...prev,
+        rows: (data as ScrapeResult[]) ?? [],
+        loaded: true,
+      }));
     }
     load();
-  }, []);
+  }, [loaded, setHistoryState]);
 
   function toggle(id: string) {
-    setExpandedId((prev) => (prev === id ? null : id));
+    setHistoryState((prev) => ({
+      ...prev,
+      expandedId: prev.expandedId === id ? null : id,
+    }));
   }
+
+  const loading = !loaded;
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4">
@@ -114,10 +125,7 @@ export default function HistoryScreen() {
                       </div>
                     </div>
                     <div className="flex-shrink-0 mt-0.5">
-                      {isOpen
-                        ? <ChevronUp size={16} className="text-gray-400" />
-                        : <ChevronDown size={16} className="text-gray-400" />
-                      }
+                      {isOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                     </div>
                   </button>
 
