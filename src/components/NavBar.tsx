@@ -30,7 +30,7 @@ export default function NavBar({ active, onNavigate }: NavBarProps) {
           className="flex items-center"
         >
           <img
-            src="/ScrapeIQ-Monogram.png"
+            src="/ScrapeIQ-2.png"
             alt="ScrapeIQ"
             style={{ height: "34px", width: "auto", objectFit: "contain" }}
           />
