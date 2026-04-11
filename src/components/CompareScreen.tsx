@@ -1,17 +1,16 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import {
-  GitCompare,
-  Loader2,
-  Save,
-  CheckCircle2,
-  Lightbulb,
-  Trophy,
-  Palette,
-  Download,
-  Mail,
+  GitCompare, Loader2, Save, CheckCircle2, Lightbulb,
+  Trophy, Palette, Download, Mail, ChevronLeft,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import Toast, { ToastMessage } from "./Toast";
+import { extractSections, Section } from "./ExploreSections";
+import { downloadComparePPT } from "../lib/pptExport";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const DESIGN_KEYWORDS = [
   "design", "layout", "ui", "ux", "visual", "color", "colour",
@@ -165,6 +164,66 @@ const mdComponents = {
   ),
 };
 
+interface SectionChipRowProps {
+  label: string;
+  sections: Section[];
+  loadingSection: string | null;
+  activeSection: string | null;
+  onSectionClick: (section: Section) => void;
+}
+
+function SectionChipRow({ label, sections, loadingSection, activeSection, onSectionClick }: SectionChipRowProps) {
+  if (sections.length < 2) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-gray-500 font-medium">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        {sections.map((section) => {
+          const isLoading = loadingSection === section.url;
+          const isActive = activeSection === section.url;
+          return (
+            <button
+              key={section.url}
+              type="button"
+              onClick={(e) => { e.preventDefault(); onSectionClick(section); }}
+              disabled={loadingSection !== null}
+              style={{
+                height: "30px",
+                borderRadius: "20px",
+                padding: "0 12px",
+                fontSize: "11px",
+                fontWeight: 500,
+                border: "1px solid #6366f1",
+                background: isActive ? "#6366f1" : "white",
+                color: isActive ? "white" : "#6366f1",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                cursor: loadingSection !== null ? "not-allowed" : "pointer",
+                opacity: loadingSection !== null && !isLoading ? 0.5 : 1,
+                transition: "background 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                if (!loadingSection && !isActive) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "#EEF2FF";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "white";
+                }
+              }}
+            >
+              {isLoading && <Loader2 size={11} className="animate-spin" />}
+              {section.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function CompareScreen() {
   const [url1, setUrl1] = useState("");
   const [url2, setUrl2] = useState("");
@@ -172,38 +231,88 @@ export default function CompareScreen() {
   const [loading, setLoading] = useState(false);
   const [designLoading, setDesignLoading] = useState(false);
   const [error, setError] = useState("");
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
   const [result, setResult] = useState<CompareResult | null>(null);
+  const [originalResult, setOriginalResult] = useState<CompareResult | null>(null);
   const [designResult, setDesignResult] = useState<DesignResult | null>(null);
   const [rawResult, setRawResult] = useState("");
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const [content1, setContent1] = useState("");
+  const [content2, setContent2] = useState("");
+  const [links1, setLinks1] = useState<string[]>([]);
+  const [links2, setLinks2] = useState<string[]>([]);
 
-  async function scrapeUrl(url: string): Promise<string> {
-    const res = await fetch(`${supabaseUrl}/functions/v1/scrape`, {
+  const [sections1, setSections1] = useState<Section[]>([]);
+  const [sections2, setSections2] = useState<Section[]>([]);
+  const [loadingChip, setLoadingChip] = useState<string | null>(null);
+  const [activeChip1, setActiveChip1] = useState<string | null>(null);
+  const [activeChip2, setActiveChip2] = useState<string | null>(null);
+  const [compareBreadcrumb, setCompareBreadcrumb] = useState<string | null>(null);
+  const [originalContent1, setOriginalContent1] = useState("");
+  const [originalContent2, setOriginalContent2] = useState("");
+
+  const addToast = useCallback((message: string, type: "success" | "error" = "success") => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((prev) => [...prev, { id, message, type }]);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  async function scrapeUrl(url: string): Promise<{ markdown: string; links: string[] }> {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/scrape`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${supabaseAnonKey}`,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ url }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Scrape failed");
-    return data.data?.markdown ?? data.data?.content ?? "";
+    return {
+      markdown: data.data?.markdown ?? data.data?.content ?? "",
+      links: data.data?.links ?? [],
+    };
   }
 
-  async function handleCompare(e: React.MouseEvent<HTMLButtonElement>) {
+  async function runComparison(c1: string, c2: string): Promise<{ parsed: CompareResult; raw: string }> {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/compare`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url1, url2, content1: c1, content2: c2, intent }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Comparison failed");
+    const raw: string = data.result ?? "";
+    const d1: string = data.domain1 ?? getDomain(url1);
+    const d2: string = data.domain2 ?? getDomain(url2);
+    return { parsed: parseCompareResult(raw, d1, d2), raw };
+  }
+
+  async function handleCompare(e: React.MouseEvent) {
     e.preventDefault();
     setError("");
     setResult(null);
+    setOriginalResult(null);
     setDesignResult(null);
     setRawResult("");
     setSaved(false);
     setSaveError("");
+    setActiveChip1(null);
+    setActiveChip2(null);
+    setCompareBreadcrumb(null);
+    setSections1([]);
+    setSections2([]);
 
     if (!url1.trim() || !url2.trim()) {
       setError("Please enter both URLs.");
@@ -212,43 +321,37 @@ export default function CompareScreen() {
 
     setLoading(true);
     try {
-      const [content1, content2] = await Promise.all([scrapeUrl(url1), scrapeUrl(url2)]);
+      const [s1, s2] = await Promise.all([scrapeUrl(url1), scrapeUrl(url2)]);
 
-      const res = await fetch(`${supabaseUrl}/functions/v1/compare`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url1, url2, content1, content2, intent }),
-      });
+      setContent1(s1.markdown);
+      setContent2(s2.markdown);
+      setLinks1(s1.links);
+      setLinks2(s2.links);
+      setOriginalContent1(s1.markdown);
+      setOriginalContent2(s2.markdown);
+      setSections1(extractSections(s1.links, url1));
+      setSections2(extractSections(s2.links, url2));
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Comparison failed");
-
-      const raw: string = data.result ?? "";
-      const d1: string = data.domain1 ?? getDomain(url1);
-      const d2: string = data.domain2 ?? getDomain(url2);
-      const parsed = parseCompareResult(raw, d1, d2);
-
-      setRawResult(raw);
+      const { parsed, raw } = await runComparison(s1.markdown, s2.markdown);
       setResult(parsed);
+      setOriginalResult(parsed);
+      setRawResult(raw);
 
       if (hasDesignIntent(intent)) {
         setDesignLoading(true);
         try {
-          const dr = await fetch(`${supabaseUrl}/functions/v1/design-compare`, {
+          const dr = await fetch(`${SUPABASE_URL}/functions/v1/design-compare`, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${supabaseAnonKey}`,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ url1, url2, domain1: d1, domain2: d2 }),
+            body: JSON.stringify({ url1, url2, domain1: parsed.domain1, domain2: parsed.domain2 }),
           });
           const dd = await dr.json();
           if (dr.ok) setDesignResult(dd);
         } catch {
-          // design analysis optional — fail silently
+          // design is optional
         } finally {
           setDesignLoading(false);
         }
@@ -260,7 +363,58 @@ export default function CompareScreen() {
     }
   }
 
-  async function handleSave(e: React.MouseEvent<HTMLButtonElement>) {
+  async function handleChip1Click(section: Section) {
+    setLoadingChip(section.url);
+    try {
+      const s = await scrapeUrl(section.url);
+      const { parsed, raw } = await runComparison(s.markdown, originalContent2);
+      setResult(parsed);
+      setRawResult(raw);
+      setContent1(s.markdown);
+      setActiveChip1(section.url);
+      setActiveChip2(null);
+      setCompareBreadcrumb(
+        `Comparing ${getDomain(url1)} ${section.name} vs ${getDomain(url2)} full page`
+      );
+    } catch {
+      addToast("Failed to load section.", "error");
+    } finally {
+      setLoadingChip(null);
+    }
+  }
+
+  async function handleChip2Click(section: Section) {
+    setLoadingChip(section.url);
+    try {
+      const s = await scrapeUrl(section.url);
+      const { parsed, raw } = await runComparison(originalContent1, s.markdown);
+      setResult(parsed);
+      setRawResult(raw);
+      setContent2(s.markdown);
+      setActiveChip2(section.url);
+      setActiveChip1(null);
+      setCompareBreadcrumb(
+        `Comparing ${getDomain(url1)} full page vs ${getDomain(url2)} ${section.name}`
+      );
+    } catch {
+      addToast("Failed to load section.", "error");
+    } finally {
+      setLoadingChip(null);
+    }
+  }
+
+  function handleBackToFull(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!originalResult) return;
+    setResult(originalResult);
+    setContent1(originalContent1);
+    setContent2(originalContent2);
+    setActiveChip1(null);
+    setActiveChip2(null);
+    setCompareBreadcrumb(null);
+  }
+
+  async function handleSave(e: React.MouseEvent) {
     e.preventDefault();
     if (!result) return;
     setSaving(true);
@@ -275,25 +429,43 @@ export default function CompareScreen() {
     setSaving(false);
     if (dbError) {
       setSaveError(dbError.message);
+      addToast("Save failed: " + dbError.message, "error");
     } else {
       setSaved(true);
+      addToast("Comparison saved!");
     }
   }
 
-  function handleDownloadPPT(e: React.MouseEvent<HTMLButtonElement>) {
+  function handleDownloadPPT(e: React.MouseEvent) {
     e.preventDefault();
-    alert("PPT download coming soon.");
+    if (!result) return;
+    downloadComparePPT({
+      url1,
+      url2,
+      domain1: result.domain1,
+      domain2: result.domain2,
+      intent,
+      keyInsight: result.keyInsight,
+      rows: result.rows,
+      winner: result.winner,
+      winnerWhy: result.winnerWhy,
+    });
+    addToast("PPT downloaded");
   }
 
-  function handleEmailPPT(e: React.MouseEvent<HTMLButtonElement>) {
+  function handleEmailPPT(e: React.MouseEvent) {
     e.preventDefault();
-    alert("Email PPT coming soon.");
+    addToast("Email PPT coming soon.");
   }
+
+  const canDownloadPPT = Boolean(result?.keyInsight && result?.rows?.length > 0);
+  const showSections = Boolean(result && (sections1.length >= 2 || sections2.length >= 2));
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4">
-      <div className="max-w-3xl mx-auto space-y-6">
+      <Toast toasts={toasts} onRemove={removeToast} />
 
+      <div className="max-w-3xl mx-auto space-y-6">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
             <GitCompare size={15} className="text-white" />
@@ -410,7 +582,7 @@ export default function CompareScreen() {
                     </thead>
                     <tbody>
                       {result.rows.map((row, i) => (
-                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-indigo-50/40"}>
+                        <tr key={i} style={{ background: i % 2 === 0 ? "white" : "#EEF2FF" }}>
                           <td className="px-4 py-3 text-xs font-semibold text-indigo-700 align-top whitespace-nowrap border-r border-gray-100">
                             {row.dimension}
                           </td>
@@ -443,7 +615,7 @@ export default function CompareScreen() {
               </div>
             )}
 
-            {/* 4. DESIGN COMPARISON — only when intent contains design keywords */}
+            {/* 4. DESIGN COMPARISON */}
             {hasDesignIntent(intent) && (
               <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
@@ -466,7 +638,6 @@ export default function CompareScreen() {
                         return (
                           <div key={idx} className="space-y-3">
                             <h3 className="text-sm font-bold text-gray-800">{site.domain}</h3>
-
                             {site.screenshot && (
                               <div className="rounded-xl overflow-hidden border border-gray-100">
                                 <img
@@ -477,13 +648,11 @@ export default function CompareScreen() {
                                 />
                               </div>
                             )}
-
                             <span
                               className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${scoreColor(site.score)}`}
                             >
                               Design Score: {site.score}/10
                             </span>
-
                             <ul className="space-y-1.5">
                               {points.map((pt, i) => (
                                 <li key={i} className="flex items-start gap-2 text-xs text-gray-600 leading-relaxed">
@@ -496,7 +665,6 @@ export default function CompareScreen() {
                         );
                       })}
                     </div>
-
                     <div className="pt-3 border-t border-gray-100">
                       <p className="text-sm font-bold text-indigo-700">
                         Design Winner: {designResult.designWinner}
@@ -512,28 +680,71 @@ export default function CompareScreen() {
               </div>
             )}
 
+            {/* SECTION CHIPS */}
+            {showSections && (
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 space-y-4">
+                {compareBreadcrumb && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="font-medium text-gray-700">{compareBreadcrumb}</span>
+                    <button
+                      type="button"
+                      onClick={handleBackToFull}
+                      className="flex items-center gap-1 text-indigo-500 hover:text-indigo-700 font-medium transition-colors ml-2"
+                    >
+                      <ChevronLeft size={12} />
+                      Back to full comparison
+                    </button>
+                  </div>
+                )}
+                {loadingChip && (
+                  <div className="flex items-center gap-2 text-xs text-indigo-600">
+                    <Loader2 size={12} className="animate-spin" />
+                    Re-comparing with selected section...
+                  </div>
+                )}
+                <SectionChipRow
+                  label={`${getDomain(url1)} — explore sections:`}
+                  sections={sections1}
+                  loadingSection={loadingChip}
+                  activeSection={activeChip1}
+                  onSectionClick={handleChip1Click}
+                />
+                <SectionChipRow
+                  label={`${getDomain(url2)} — explore sections:`}
+                  sections={sections2}
+                  loadingSection={loadingChip}
+                  activeSection={activeChip2}
+                  onSectionClick={handleChip2Click}
+                />
+              </div>
+            )}
+
             {saveError && (
               <p className="text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-lg">{saveError}</p>
             )}
 
             {/* 5. DOWNLOAD PPT + EMAIL PPT + SAVE */}
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={handleDownloadPPT}
-                className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
-              >
-                <Download size={15} />
-                Download PPT
-              </button>
-              <button
-                type="button"
-                onClick={handleEmailPPT}
-                className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
-              >
-                <Mail size={15} />
-                Email PPT
-              </button>
+              {canDownloadPPT && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDownloadPPT}
+                    className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
+                  >
+                    <Download size={15} />
+                    Download PPT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleEmailPPT}
+                    className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
+                  >
+                    <Mail size={15} />
+                    Email PPT
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 onClick={handleSave}

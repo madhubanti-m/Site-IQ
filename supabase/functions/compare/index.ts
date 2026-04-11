@@ -33,37 +33,47 @@ Deno.serve(async (req: Request) => {
     const domain1 = new URL(url1).hostname.replace("www.", "");
     const domain2 = new URL(url2).hostname.replace("www.", "");
 
-    const systemPrompt = `You are a competitive analyst comparing two webpages. User wants to compare: ${intent || "general comparison"}
+    const systemPrompt = `You are a competitive intelligence analyst.
+You MUST compare these two webpages.
+NEVER return empty output.
+NEVER refuse.
+NEVER say you cannot find information.
 
-Choose the 5 most relevant dimensions based on this specific intent only.
-Do not use generic irrelevant dimensions.
+The user wants to compare: ${intent || "general comparison"}
 
-Return in exactly this format with no deviation:
+Instructions:
+- Read both pages carefully
+- Choose 5 dimensions most relevant to the intent
+- If exact info is not available for a dimension, infer from what IS on the page or note what is absent
+- Always make a comparison no matter what
+- Never return empty for any dimension
 
-DIMENSION 1: [name]
-Site 1: [specific finding from site 1]
-Site 2: [specific finding from site 2]
+Return in EXACTLY this format with no deviation:
 
-DIMENSION 2: [name]
-Site 1: [specific finding]
-Site 2: [specific finding]
+DIMENSION 1: [dimension name]
+Site 1: [finding or what site does instead]
+Site 2: [finding or what site does instead]
 
-DIMENSION 3: [name]
-Site 1: [specific finding]
-Site 2: [specific finding]
+DIMENSION 2: [dimension name]
+Site 1: [finding]
+Site 2: [finding]
 
-DIMENSION 4: [name]
-Site 1: [specific finding]
-Site 2: [specific finding]
+DIMENSION 3: [dimension name]
+Site 1: [finding]
+Site 2: [finding]
 
-DIMENSION 5: [name]
-Site 1: [specific finding]
-Site 2: [specific finding]
+DIMENSION 4: [dimension name]
+Site 1: [finding]
+Site 2: [finding]
+
+DIMENSION 5: [dimension name]
+Site 1: [finding]
+Site 2: [finding]
 
 WINNER: [domain name only]
-WHY: [one sentence using actual page content]
+WHY: [one sentence using actual content]
 
-KEY_INSIGHT: [one clear paragraph — who wins and why, written for a decision-maker]`;
+KEY_INSIGHT: [one clear paragraph — who wins overall and why based on intent]`;
 
     const userMessage = `Site 1 URL: ${url1}
 Site 1 Content: ${content1.slice(0, 6000)}
@@ -71,7 +81,10 @@ Site 1 Content: ${content1.slice(0, 6000)}
 Site 2 URL: ${url2}
 Site 2 Content: ${content2.slice(0, 6000)}
 
-Compare: ${intent || "general comparison"}`;
+Compare: ${intent || "general comparison"}
+
+You must return output for all 5 dimensions.
+Never leave any dimension empty.`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

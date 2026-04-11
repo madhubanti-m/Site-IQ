@@ -1,12 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
-import { Sparkles, Brain, Link2, ChevronDown, ChevronUp, Save, RotateCcw, ExternalLink, CheckCircle2, Loader2, ChevronRight } from "lucide-react";
-
+import {
+  Sparkles, Brain, Link2, Save, RotateCcw, ExternalLink,
+  CheckCircle2, Loader2, ChevronRight, Download,
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { ScrapeResult } from "../types";
-import ExploreSections, { Section } from "./ExploreSections";
+import ExploreSections, { Section, extractSections } from "./ExploreSections";
+import Toast, { ToastMessage } from "./Toast";
+import { downloadScrapePPT } from "../lib/pptExport";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const mdComponents = {
   h2: ({ children }: { children?: React.ReactNode }) => (
@@ -50,55 +55,36 @@ function getDomain(url: string): string {
 }
 
 export default function ResultsScreen({ result, onScrapeAnother, onSaved }: ResultsScreenProps) {
-  const [linksOpen, setLinksOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [showToast, setShowToast] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const [sections, setSections] = useState<Section[]>([]);
-  const [sectionsLoading, setSectionsLoading] = useState(false);
   const [loadingSection, setLoadingSection] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [currentResult, setCurrentResult] = useState(result);
+  const [originalResult, setOriginalResult] = useState(result);
   const [breadcrumb, setBreadcrumb] = useState<{ domain: string; section: string } | null>(null);
 
-  useEffect(() => {
-    if (showToast) {
-      const t = setTimeout(() => setShowToast(false), 3000);
-      return () => clearTimeout(t);
-    }
-  }, [showToast]);
+  const addToast = useCallback((message: string, type: "success" | "error" = "success") => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((prev) => [...prev, { id, message, type }]);
+  }, []);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   useEffect(() => {
     setCurrentResult(result);
+    setOriginalResult(result);
     setBreadcrumb(null);
-    setSections([]);
-    fetchSections(result.url, result.links);
+    setActiveSection(null);
+    setSaved(false);
+    setSaveError("");
+    setSections(extractSections(result.links ?? [], result.url));
   }, [result]);
-
-  async function fetchSections(url: string, links: string[]) {
-    if (!links || links.length === 0) return;
-    setSectionsLoading(true);
-    try {
-      const domain = getDomain(url);
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/explore-sections`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ links, domain }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSections(Array.isArray(data.sections) ? data.sections : []);
-      }
-    } catch {
-      setSections([]);
-    } finally {
-      setSectionsLoading(false);
-    }
-  }
 
   async function handleSectionClick(section: Section) {
     setLoadingSection(section.url);
@@ -107,7 +93,7 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({ url: section.url }),
       });
@@ -124,7 +110,7 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({ intent: result.intent, content }),
         }),
@@ -132,7 +118,7 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({ content }),
         }),
@@ -150,17 +136,27 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
         summary,
         analysis,
       });
+      setActiveSection(section.url);
       setBreadcrumb({ domain: getDomain(result.url), section: section.name });
       setSaved(false);
       setSaveError("");
-      setLinksOpen(false);
     } catch {
+      addToast("Failed to load section.", "error");
     } finally {
       setLoadingSection(null);
     }
   }
 
-  async function handleSave() {
+  function handleBack() {
+    setCurrentResult(originalResult);
+    setBreadcrumb(null);
+    setActiveSection(null);
+    setSaved(false);
+    setSaveError("");
+  }
+
+  async function handleSave(e: React.MouseEvent) {
+    e.preventDefault();
     setSaving(true);
     setSaveError("");
 
@@ -174,30 +170,37 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
       analysis: currentResult.analysis,
     };
 
-    const { data, error } = await supabase
-      .from("scrape_results")
-      .insert(payload)
-      .select();
+    const { error } = await supabase.from("scrape_results").insert(payload).select();
 
     setSaving(false);
     if (error) {
       setSaveError(error.message);
+      addToast("Save failed: " + error.message, "error");
     } else {
-      console.log("Saved successfully", data);
       setSaved(true);
-      setShowToast(true);
+      addToast("Saved to history!");
       setTimeout(() => onSaved(), 1500);
     }
   }
 
+  function handleDownloadPPT(e: React.MouseEvent) {
+    e.preventDefault();
+    if (!currentResult.summary || !currentResult.analysis) return;
+    downloadScrapePPT({
+      title: currentResult.title,
+      url: currentResult.url,
+      intent: currentResult.intent,
+      summary: currentResult.summary,
+      analysis: currentResult.analysis,
+    });
+    addToast("PPT downloaded");
+  }
+
+  const canDownloadPPT = Boolean(currentResult.title && currentResult.summary && currentResult.analysis);
+
   return (
     <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4 relative">
-      {showToast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-green-600 text-white text-sm font-semibold px-5 py-3 rounded-full shadow-lg">
-          <CheckCircle2 size={16} />
-          Saved!
-        </div>
-      )}
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
@@ -237,7 +240,7 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
               {currentResult.intent}
             </span>
           </div>
-          <div className="leading-relaxed" style={{ lineHeight: 1.6 }}>
+          <div style={{ lineHeight: 1.6 }}>
             {currentResult.summary ? (
               <ReactMarkdown components={mdComponents}>{currentResult.summary}</ReactMarkdown>
             ) : (
@@ -273,59 +276,20 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
 
         <hr className="border-gray-200" />
 
-        {sectionsLoading ? (
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <Loader2 size={12} className="animate-spin" />
-            Finding sections...
-          </div>
-        ) : (
-          <ExploreSections
-            sections={sections}
-            loadingSection={loadingSection}
-            onSectionClick={handleSectionClick}
-          />
-        )}
+        <ExploreSections
+          sections={sections}
+          loadingSection={loadingSection}
+          activeSection={activeSection}
+          onSectionClick={handleSectionClick}
+          breadcrumb={breadcrumb}
+          onBack={handleBack}
+        />
 
-        {(sections.length > 0 || sectionsLoading) && <hr className="border-gray-200" />}
+        {sections.length >= 2 && <hr className="border-gray-200" />}
 
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); setLinksOpen((v) => !v); }}
-            className="w-full flex items-center justify-between px-6 py-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Link2 size={15} className="text-indigo-500" />
-              Links found
-              <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                {currentResult.links.length}
-              </span>
-            </div>
-            {linksOpen ? <ChevronUp size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
-          </button>
-          {linksOpen && (
-            <div className="border-t border-gray-100 max-h-52 overflow-y-auto">
-              {currentResult.links.length === 0 ? (
-                <p className="px-6 py-4 text-sm text-gray-400">No links found.</p>
-              ) : (
-                <ul className="divide-y divide-gray-50">
-                  {currentResult.links.map((link, i) => (
-                    <li key={i}>
-                      <a
-                        href={link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-6 py-2.5 text-xs text-indigo-600 hover:bg-indigo-50 transition-colors truncate"
-                      >
-                        <ExternalLink size={11} className="flex-shrink-0" />
-                        <span className="truncate">{link}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+        <div className="flex items-center gap-2 text-sm text-gray-600 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+          <Link2 size={14} className="text-indigo-400 flex-shrink-0" />
+          <span className="font-medium">{currentResult.links.length} links found on this page</span>
         </div>
 
         {saveError && (
@@ -333,9 +297,19 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
         )}
 
         <div className="flex gap-3">
+          {canDownloadPPT && (
+            <button
+              type="button"
+              onClick={handleDownloadPPT}
+              className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 px-5 rounded-xl text-sm transition-colors"
+            >
+              <Download size={15} />
+              Download PPT
+            </button>
+          )}
           <button
             type="button"
-            onClick={(e) => { e.preventDefault(); handleSave(); }}
+            onClick={handleSave}
             disabled={saving || saved}
             className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"
           >
