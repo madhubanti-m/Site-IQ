@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Sparkles, Brain, Link2, ChevronDown, ChevronUp, Save, RotateCcw, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+import { Sparkles, Brain, Link2, ChevronDown, ChevronUp, Save, RotateCcw, ExternalLink, CheckCircle2, Loader2, ChevronRight } from "lucide-react";
 
 import { supabase } from "../lib/supabase";
 import { ScrapeResult } from "../types";
+import ExploreSections, { Section } from "./ExploreSections";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 const mdComponents = {
   h2: ({ children }: { children?: React.ReactNode }) => (
@@ -38,6 +41,13 @@ interface ResultsScreenProps {
   onSaved: () => void;
 }
 
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
 
 export default function ResultsScreen({ result, onScrapeAnother, onSaved }: ResultsScreenProps) {
   const [linksOpen, setLinksOpen] = useState(false);
@@ -47,6 +57,12 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
   const [saveError, setSaveError] = useState("");
   const [showToast, setShowToast] = useState(false);
 
+  const [sections, setSections] = useState<Section[]>([]);
+  const [sectionsLoading, setSectionsLoading] = useState(false);
+  const [loadingSection, setLoadingSection] = useState<string | null>(null);
+  const [currentResult, setCurrentResult] = useState(result);
+  const [breadcrumb, setBreadcrumb] = useState<{ domain: string; section: string } | null>(null);
+
   useEffect(() => {
     if (showToast) {
       const t = setTimeout(() => setShowToast(false), 3000);
@@ -54,18 +70,110 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
     }
   }, [showToast]);
 
+  useEffect(() => {
+    setCurrentResult(result);
+    setBreadcrumb(null);
+    setSections([]);
+    fetchSections(result.url, result.links);
+  }, [result]);
+
+  async function fetchSections(url: string, links: string[]) {
+    if (!links || links.length === 0) return;
+    setSectionsLoading(true);
+    try {
+      const domain = getDomain(url);
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/explore-sections`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ links, domain }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSections(Array.isArray(data.sections) ? data.sections : []);
+      }
+    } catch {
+      setSections([]);
+    } finally {
+      setSectionsLoading(false);
+    }
+  }
+
+  async function handleSectionClick(section: Section) {
+    setLoadingSection(section.url);
+    try {
+      const scrapeRes = await fetch(`${SUPABASE_URL}/functions/v1/scrape`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ url: section.url }),
+      });
+
+      if (!scrapeRes.ok) throw new Error("Scraping failed");
+
+      const scrapeData = await scrapeRes.json();
+      const content: string = scrapeData.data?.markdown ?? "";
+      const title: string = scrapeData.data?.metadata?.title ?? section.url;
+      const links: string[] = scrapeData.data?.links ?? [];
+
+      const [analyzeRes, smartRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/functions/v1/analyze`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ intent: result.intent, content }),
+        }),
+        fetch(`${SUPABASE_URL}/functions/v1/smart-analysis`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ content }),
+        }),
+      ]);
+
+      const { summary } = analyzeRes.ok ? await analyzeRes.json() : { summary: "" };
+      const { analysis } = smartRes.ok ? await smartRes.json() : { analysis: "" };
+
+      setCurrentResult({
+        url: section.url,
+        intent: result.intent,
+        title,
+        content,
+        links,
+        summary,
+        analysis,
+      });
+      setBreadcrumb({ domain: getDomain(result.url), section: section.name });
+      setSaved(false);
+      setSaveError("");
+      setLinksOpen(false);
+      setContentExpanded(false);
+    } catch {
+    } finally {
+      setLoadingSection(null);
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     setSaveError("");
 
     const payload = {
-      url: result.url,
-      intent: result.intent,
-      title: result.title,
-      content: result.content,
-      links: result.links,
-      summary: result.summary,
-      analysis: result.analysis,
+      url: currentResult.url,
+      intent: currentResult.intent,
+      title: currentResult.title,
+      content: currentResult.content,
+      links: currentResult.links,
+      summary: currentResult.summary,
+      analysis: currentResult.analysis,
     };
 
     const { data, error } = await supabase
@@ -95,16 +203,23 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
 
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
+          {breadcrumb && (
+            <div className="flex items-center gap-1 text-xs text-gray-400 mb-2">
+              <span className="font-medium text-gray-500">{breadcrumb.domain}</span>
+              <ChevronRight size={12} />
+              <span className="font-medium text-indigo-600">{breadcrumb.section}</span>
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-gray-900 leading-tight">
-            {result.title}
+            {currentResult.title}
           </h1>
           <a
-            href={result.url}
+            href={currentResult.url}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-indigo-500 hover:text-indigo-700 mt-1 transition-colors"
           >
-            {result.url}
+            {currentResult.url}
             <ExternalLink size={12} />
           </a>
         </div>
@@ -121,12 +236,12 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
             </div>
             <span className="text-sm font-semibold text-gray-800">AI Insight — based on your goal</span>
             <span className="ml-auto text-xs text-indigo-600 bg-white border border-indigo-100 px-2 py-0.5 rounded-full font-medium">
-              {result.intent}
+              {currentResult.intent}
             </span>
           </div>
           <div className="leading-relaxed" style={{ lineHeight: 1.6 }}>
-            {result.summary ? (
-              <ReactMarkdown components={mdComponents}>{result.summary}</ReactMarkdown>
+            {currentResult.summary ? (
+              <ReactMarkdown components={mdComponents}>{currentResult.summary}</ReactMarkdown>
             ) : (
               <p className="text-sm text-gray-500 italic">No insights generated.</p>
             )}
@@ -146,9 +261,9 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
             <span className="text-sm font-semibold text-gray-800">Smart Analysis</span>
           </div>
 
-          {result.analysis ? (
+          {currentResult.analysis ? (
             <div style={{ lineHeight: 1.6 }}>
-              <ReactMarkdown components={mdComponents}>{result.analysis}</ReactMarkdown>
+              <ReactMarkdown components={mdComponents}>{currentResult.analysis}</ReactMarkdown>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm text-gray-400 italic">
@@ -159,6 +274,21 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
         </div>
 
         <hr className="border-gray-200" />
+
+        {sectionsLoading ? (
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Loader2 size={12} className="animate-spin" />
+            Finding sections...
+          </div>
+        ) : (
+          <ExploreSections
+            sections={sections}
+            loadingSection={loadingSection}
+            onSectionClick={handleSectionClick}
+          />
+        )}
+
+        {(sections.length > 0 || sectionsLoading) && <hr className="border-gray-200" />}
 
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <button
@@ -172,10 +302,10 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
           <div className="border-t border-gray-100">
             <pre className="px-6 py-4 text-xs text-gray-600 font-mono whitespace-pre-wrap bg-gray-50 overflow-x-auto" style={{ maxHeight: contentExpanded ? "400px" : undefined, overflowY: contentExpanded ? "auto" : "hidden" }}>
               {contentExpanded
-                ? result.content
-                : result.content.split("\n").slice(0, 3).join("\n")}
+                ? currentResult.content
+                : currentResult.content.split("\n").slice(0, 3).join("\n")}
             </pre>
-            {!contentExpanded && result.content.split("\n").length > 3 && (
+            {!contentExpanded && currentResult.content.split("\n").length > 3 && (
               <div className="px-6 pb-4 pt-0">
                 <button
                   type="button"
@@ -212,18 +342,18 @@ export default function ResultsScreen({ result, onScrapeAnother, onSaved }: Resu
               <Link2 size={15} className="text-indigo-500" />
               Links found
               <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                {result.links.length}
+                {currentResult.links.length}
               </span>
             </div>
             {linksOpen ? <ChevronUp size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
           </button>
           {linksOpen && (
             <div className="border-t border-gray-100 max-h-52 overflow-y-auto">
-              {result.links.length === 0 ? (
+              {currentResult.links.length === 0 ? (
                 <p className="px-6 py-4 text-sm text-gray-400">No links found.</p>
               ) : (
                 <ul className="divide-y divide-gray-50">
-                  {result.links.map((link, i) => (
+                  {currentResult.links.map((link, i) => (
                     <li key={i}>
                       <a
                         href={link}
