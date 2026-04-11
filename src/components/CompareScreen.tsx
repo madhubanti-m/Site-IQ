@@ -1,14 +1,158 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { GitCompare, Loader2, Save, CheckCircle2, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  GitCompare,
+  Loader2,
+  Save,
+  CheckCircle2,
+  Lightbulb,
+  Trophy,
+  Palette,
+  Download,
+  Mail,
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
+
+const DESIGN_KEYWORDS = [
+  "design", "layout", "ui", "ux", "visual", "color", "colour",
+  "typography", "branding", "brand", "aesthetic", "look", "feel",
+  "interface", "style", "font", "theme",
+];
+
+function hasDesignIntent(intent: string): boolean {
+  const lower = intent.toLowerCase();
+  return DESIGN_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace("www.", "");
+  } catch {
+    return url;
+  }
+}
+
+interface CompareRow {
+  dimension: string;
+  site1: string;
+  site2: string;
+}
+
+interface DesignSite {
+  domain: string;
+  screenshot: string | null;
+  analysis: string;
+  score: number;
+}
+
+interface DesignResult {
+  site1: DesignSite;
+  site2: DesignSite;
+  designWinner: string;
+  winnerReason: string;
+}
+
+interface CompareResult {
+  rows: CompareRow[];
+  keyInsight: string;
+  winner: string;
+  winnerWhy: string;
+  domain1: string;
+  domain2: string;
+}
+
+function parseCompareResult(raw: string, domain1: string, domain2: string): CompareResult {
+  const rows: CompareRow[] = [];
+  let keyInsight = "";
+  let winner = "";
+  let winnerWhy = "";
+
+  const lines = raw.split("\n");
+  let currentDim = "";
+  let currentSite1 = "";
+  let currentSite2 = "";
+  let collectingInsight = false;
+  const insightLines: string[] = [];
+
+  for (const line of lines) {
+    const dimMatch = line.match(/^DIMENSION\s+\d+:\s*(.+)/i);
+    const site1Match = line.match(/^Site\s+1:\s*(.+)/i);
+    const site2Match = line.match(/^Site\s+2:\s*(.+)/i);
+    const winnerMatch = line.match(/^WINNER:\s*(.+)/i);
+    const whyMatch = line.match(/^WHY:\s*(.+)/i);
+    const insightMatch = line.match(/^KEY_INSIGHT:\s*(.*)/i);
+
+    if (dimMatch) {
+      collectingInsight = false;
+      if (currentDim && currentSite1 && currentSite2) {
+        rows.push({ dimension: currentDim, site1: currentSite1, site2: currentSite2 });
+      }
+      currentDim = dimMatch[1].trim();
+      currentSite1 = "";
+      currentSite2 = "";
+    } else if (site1Match) {
+      currentSite1 = site1Match[1].trim();
+    } else if (site2Match) {
+      currentSite2 = site2Match[1].trim();
+    } else if (winnerMatch) {
+      collectingInsight = false;
+      if (currentDim && currentSite1 && currentSite2) {
+        rows.push({ dimension: currentDim, site1: currentSite1, site2: currentSite2 });
+        currentDim = "";
+      }
+      winner = winnerMatch[1].trim();
+    } else if (whyMatch) {
+      winnerWhy = whyMatch[1].trim();
+    } else if (insightMatch) {
+      collectingInsight = true;
+      if (insightMatch[1].trim()) insightLines.push(insightMatch[1].trim());
+    } else if (collectingInsight && line.trim()) {
+      insightLines.push(line.trim());
+    }
+  }
+
+  if (currentDim && currentSite1 && currentSite2) {
+    rows.push({ dimension: currentDim, site1: currentSite1, site2: currentSite2 });
+  }
+
+  keyInsight = insightLines.join(" ");
+
+  return { rows, keyInsight, winner, winnerWhy, domain1, domain2 };
+}
+
+function scoreColor(score: number): string {
+  if (score >= 7) return "bg-green-100 text-green-700 border-green-200";
+  if (score >= 5) return "bg-orange-100 text-orange-700 border-orange-200";
+  return "bg-red-100 text-red-700 border-red-200";
+}
+
+function extractDesignPoints(analysis: string): string[] {
+  const lines = analysis.split("\n").filter((l) => l.trim().length > 0);
+  const points: string[] = [];
+  for (const line of lines) {
+    const clean = line.replace(/^\d+\.\s*/, "").replace(/^[-*]\s*/, "").trim();
+    if (clean.length > 10 && points.length < 3) {
+      points.push(clean);
+    }
+  }
+  return points;
+}
 
 const mdComponents = {
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className="text-sm text-gray-700 leading-relaxed mb-2 last:mb-0">{children}</p>
   ),
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-gray-900">{children}</strong>
+    <strong className="font-semibold text-indigo-800">{children}</strong>
+  ),
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className="text-base font-bold text-indigo-600 mb-1">{children}</h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className="text-sm font-bold text-indigo-600 mb-1">{children}</h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="text-sm font-bold text-indigo-600 mb-1">{children}</h3>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
     <ul className="space-y-1.5 my-2">{children}</ul>
@@ -21,60 +165,16 @@ const mdComponents = {
   ),
 };
 
-interface CompareRow {
-  dimension: string;
-  col1: string;
-  col2: string;
-}
-
-interface CompareResult {
-  rows: CompareRow[];
-  keyInsight: string;
-  domain1: string;
-  domain2: string;
-}
-
-function parseComparisonTable(raw: string, domain1: string, domain2: string): CompareRow[] {
-  const lines = raw.split("\n");
-  const rows: CompareRow[] = [];
-  for (const line of lines) {
-    if (!line.trim().startsWith("|")) continue;
-    const cells = line
-      .split("|")
-      .map((c) => c.trim())
-      .filter((c) => c.length > 0);
-    if (cells.length < 3) continue;
-    if (/^[-:]+$/.test(cells[0])) continue;
-    const dim = cells[0];
-    if (
-      dim.toLowerCase() === "dimension" ||
-      dim.toLowerCase().includes(domain1.toLowerCase()) ||
-      dim.toLowerCase().includes(domain2.toLowerCase())
-    )
-      continue;
-    rows.push({ dimension: dim, col1: cells[1] ?? "", col2: cells[2] ?? "" });
-  }
-  return rows;
-}
-
-function extractSections(raw: string): { tableSection: string; keyInsight: string } {
-  const insightMatch = raw.match(/##\s*Key Insight\s*\n([\s\S]*)/i);
-  const keyInsight = insightMatch ? insightMatch[1].trim() : "";
-  const tableSection = insightMatch ? raw.slice(0, insightMatch.index).trim() : raw.trim();
-  return { tableSection, keyInsight };
-}
-
-const PREVIEW_ROWS = 3;
-
 export default function CompareScreen() {
   const [url1, setUrl1] = useState("");
   const [url2, setUrl2] = useState("");
   const [intent, setIntent] = useState("");
   const [loading, setLoading] = useState(false);
+  const [designLoading, setDesignLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<CompareResult | null>(null);
+  const [designResult, setDesignResult] = useState<DesignResult | null>(null);
   const [rawResult, setRawResult] = useState("");
-  const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -96,18 +196,14 @@ export default function CompareScreen() {
     return data.data?.markdown ?? data.data?.content ?? "";
   }
 
-  function handleCompareClick(e: React.MouseEvent<HTMLButtonElement>) {
+  async function handleCompare(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
-    handleCompare();
-  }
-
-  async function handleCompare() {
     setError("");
     setResult(null);
+    setDesignResult(null);
     setRawResult("");
     setSaved(false);
     setSaveError("");
-    setExpanded(false);
 
     if (!url1.trim() || !url2.trim()) {
       setError("Please enter both URLs.");
@@ -131,13 +227,32 @@ export default function CompareScreen() {
       if (!res.ok) throw new Error(data.error || "Comparison failed");
 
       const raw: string = data.result ?? "";
-      const domain1: string = data.domain1 ?? new URL(url1).hostname;
-      const domain2: string = data.domain2 ?? new URL(url2).hostname;
-      const { tableSection, keyInsight } = extractSections(raw);
-      const rows = parseComparisonTable(tableSection, domain1, domain2);
+      const d1: string = data.domain1 ?? getDomain(url1);
+      const d2: string = data.domain2 ?? getDomain(url2);
+      const parsed = parseCompareResult(raw, d1, d2);
 
       setRawResult(raw);
-      setResult({ rows, keyInsight, domain1, domain2 });
+      setResult(parsed);
+
+      if (hasDesignIntent(intent)) {
+        setDesignLoading(true);
+        try {
+          const dr = await fetch(`${supabaseUrl}/functions/v1/design-compare`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${supabaseAnonKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ url1, url2, domain1: d1, domain2: d2 }),
+          });
+          const dd = await dr.json();
+          if (dr.ok) setDesignResult(dd);
+        } catch {
+          // design analysis optional — fail silently
+        } finally {
+          setDesignLoading(false);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -165,15 +280,20 @@ export default function CompareScreen() {
     }
   }
 
-  const visibleRows = result
-    ? expanded
-      ? result.rows
-      : result.rows.slice(0, PREVIEW_ROWS)
-    : [];
+  function handleDownloadPPT(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    alert("PPT download coming soon.");
+  }
+
+  function handleEmailPPT(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    alert("Email PPT coming soon.");
+  }
 
   return (
     <div className="min-h-[calc(100vh-56px)] bg-gray-50 py-10 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
+
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
             <GitCompare size={15} className="text-white" />
@@ -213,7 +333,7 @@ export default function CompareScreen() {
               type="text"
               value={intent}
               onChange={(e) => setIntent(e.target.value)}
-              placeholder="e.g. pricing, features, messaging"
+              placeholder="e.g. pricing, features, design, messaging"
               className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition"
             />
           </div>
@@ -224,7 +344,7 @@ export default function CompareScreen() {
 
           <button
             type="button"
-            onClick={handleCompareClick}
+            onClick={handleCompare}
             disabled={loading}
             className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"
           >
@@ -244,74 +364,7 @@ export default function CompareScreen() {
 
         {result && (
           <>
-            <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-                <GitCompare size={15} className="text-indigo-500" />
-                <span className="text-sm font-semibold text-gray-800">Comparison</span>
-                <span className="ml-auto text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full font-medium">
-                  {result.domain1} vs {result.domain2}
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
-                  <thead className="bg-indigo-600">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider w-40">
-                        Dimension
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
-                        {result.domain1}
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
-                        {result.domain2}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleRows.map((row, i) => (
-                      <tr
-                        key={i}
-                        className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                      >
-                        <td className="px-4 py-3 text-xs font-semibold text-indigo-700 align-top whitespace-nowrap border-r border-gray-100">
-                          {row.dimension}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 align-top leading-relaxed">
-                          {row.col1}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 align-top leading-relaxed">
-                          {row.col2}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {result.rows.length > PREVIEW_ROWS && (
-                <div className="border-t border-gray-100 px-6 py-3 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); setExpanded((v) => !v); }}
-                    className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                  >
-                    {expanded ? (
-                      <>
-                        <ChevronUp size={15} />
-                        Collapse
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown size={15} />
-                        Show full comparison
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-
+            {/* 1. KEY INSIGHT */}
             {result.keyInsight && (
               <div
                 className="rounded-2xl p-5 shadow-sm"
@@ -329,28 +382,177 @@ export default function CompareScreen() {
               </div>
             )}
 
+            {/* 2. COMPARISON TABLE */}
+            {result.rows.length > 0 && (
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                  <GitCompare size={15} className="text-indigo-500" />
+                  <span className="text-sm font-semibold text-gray-800">Comparison</span>
+                  <span className="ml-auto text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full font-medium">
+                    {result.domain1} vs {result.domain2}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="bg-indigo-600">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider w-40">
+                          Dimension
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+                          {result.domain1}
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+                          {result.domain2}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.rows.map((row, i) => (
+                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-indigo-50/40"}>
+                          <td className="px-4 py-3 text-xs font-semibold text-indigo-700 align-top whitespace-nowrap border-r border-gray-100">
+                            {row.dimension}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700 align-top leading-relaxed">
+                            {row.site1}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700 align-top leading-relaxed">
+                            {row.site2}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 3. WINNER BOX */}
+            {result.winner && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
+                <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Trophy size={15} className="text-white" />
+                </div>
+                <p className="text-sm font-bold text-indigo-700">
+                  Winner: {result.winner}
+                  {result.winnerWhy && (
+                    <span className="font-normal text-indigo-600"> — {result.winnerWhy}</span>
+                  )}
+                </p>
+              </div>
+            )}
+
+            {/* 4. DESIGN COMPARISON — only when intent contains design keywords */}
+            {hasDesignIntent(intent) && (
+              <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                  <div className="w-6 h-6 bg-indigo-600 rounded-md flex items-center justify-center">
+                    <Palette size={13} className="text-white" />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800">Design Comparison</span>
+                </div>
+
+                {designLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-500">
+                    <Loader2 size={16} className="animate-spin text-indigo-500" />
+                    Analysing designs...
+                  </div>
+                ) : designResult ? (
+                  <div className="p-5 space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      {[designResult.site1, designResult.site2].map((site, idx) => {
+                        const points = extractDesignPoints(site.analysis);
+                        return (
+                          <div key={idx} className="space-y-3">
+                            <h3 className="text-sm font-bold text-gray-800">{site.domain}</h3>
+
+                            {site.screenshot && (
+                              <div className="rounded-xl overflow-hidden border border-gray-100">
+                                <img
+                                  src={site.screenshot}
+                                  alt={`${site.domain} screenshot`}
+                                  className="w-full object-cover object-top"
+                                  style={{ maxHeight: "150px" }}
+                                />
+                              </div>
+                            )}
+
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${scoreColor(site.score)}`}
+                            >
+                              Design Score: {site.score}/10
+                            </span>
+
+                            <ul className="space-y-1.5">
+                              {points.map((pt, i) => (
+                                <li key={i} className="flex items-start gap-2 text-xs text-gray-600 leading-relaxed">
+                                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                                  <span>{pt}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-100">
+                      <p className="text-sm font-bold text-indigo-700">
+                        Design Winner: {designResult.designWinner}
+                        <span className="font-normal text-indigo-600"> — {designResult.winnerReason}</span>
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-5 py-6 text-sm text-gray-400 text-center">
+                    Design analysis unavailable.
+                  </div>
+                )}
+              </div>
+            )}
+
             {saveError && (
               <p className="text-sm text-red-500 bg-red-50 px-4 py-2.5 rounded-lg">{saveError}</p>
             )}
 
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || saved}
-              className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"
-            >
-              {saved ? (
-                <>
-                  <CheckCircle2 size={16} />
-                  Saved!
-                </>
-              ) : (
-                <>
-                  <Save size={16} />
-                  {saving ? "Saving..." : "Save Comparison"}
-                </>
-              )}
-            </button>
+            {/* 5. DOWNLOAD PPT + EMAIL PPT + SAVE */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={handleDownloadPPT}
+                className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
+              >
+                <Download size={15} />
+                Download PPT
+              </button>
+              <button
+                type="button"
+                onClick={handleEmailPPT}
+                className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
+              >
+                <Mail size={15} />
+                Email PPT
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || saved}
+                className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl text-sm transition-colors"
+              >
+                {saved ? (
+                  <>
+                    <CheckCircle2 size={16} />
+                    Saved!
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    {saving ? "Saving..." : "Save Comparison"}
+                  </>
+                )}
+              </button>
+            </div>
           </>
         )}
       </div>
